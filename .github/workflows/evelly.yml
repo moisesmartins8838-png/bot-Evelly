@@ -2,38 +2,138 @@ name: Evelly Bot
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
 
+  repository_dispatch:
+    types:
+      - evelly_restart
+
+
+# =========================================================
+# PERMISSÕES
+# =========================================================
+
+permissions:
+  contents: write
+
+
+# =========================================================
+# EVITAR DUAS EVELLY AO MESMO TEMPO
+# =========================================================
+
+concurrency:
+  group: evelly-bot
+  cancel-in-progress: true
+
+
+# =========================================================
+# JOB
+# =========================================================
+
 jobs:
+
   bot:
+
+    name: Evelly Online
+
     runs-on: ubuntu-latest
+
+    # 350 minutos = 5h50
+    # Menor que o limite oficial de 6 horas.
+    timeout-minutes: 350
+
 
     steps:
 
-      - name: Baixar código da Evelly
+      # ===================================================
+      # BAIXAR CÓDIGO
+      # ===================================================
+
+      - name: 📥 Baixar código da Evelly
         uses: actions/checkout@v6
 
-      - name: Configurar Python
+
+      # ===================================================
+      # PYTHON
+      # ===================================================
+
+      - name: 🐍 Configurar Python
         uses: actions/setup-python@v6
+
         with:
           python-version: "3.14"
 
-      - name: Instalar dependências
+
+      # ===================================================
+      # DEPENDÊNCIAS
+      # ===================================================
+
+      - name: 📦 Instalar dependências
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Testar conexão com Discord
-        run: |
-          curl -A "EvellyBot/1.0" -i --max-time 15 https://discord.com/api/v10/gateway
 
-      - name: Iniciar Evelly
+      # ===================================================
+      # TESTAR DISCORD
+      # ===================================================
+
+      - name: 🌐 Testar conexão com Discord
+        run: |
+          curl -A "EvellyBot/1.0" \
+            -i \
+            --max-time 15 \
+            https://discord.com/api/v10/gateway
+
+
+      # ===================================================
+      # INICIAR EVELLY
+      # ===================================================
+
+      - name: 🤖 Iniciar Evelly
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
+
         run: |
+          echo "=============================================="
+          echo "🚀 INICIANDO EVELLY"
+          echo "=============================================="
+          echo "⏱️ Tempo máximo deste ciclo: 5h50"
+          echo "🔄 Após o ciclo, uma nova execução será criada."
+          echo "=============================================="
+          echo ""
+
           python bot.py
+
+
+      # ===================================================
+      # SOLICITAR NOVO CICLO
+      # ===================================================
+
+      - name: 🔄 Solicitar reinício da Evelly
+        if: always()
+
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+        run: |
+
+          echo "=============================================="
+          echo "🔄 PREPARANDO NOVO CICLO"
+          echo "=============================================="
+
+          echo "📡 Solicitando nova execução..."
+
+          gh api \
+            --method POST \
+            "/repos/${{ github.repository }}/dispatches" \
+            -f event_type="evelly_restart"
+
+          echo "✅ Novo ciclo solicitado!"
+          echo "=============================================="
