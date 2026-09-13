@@ -2,9 +2,7 @@ import os
 from pathlib import Path
 
 import discord
-
 from discord.ext import commands
-
 from dotenv import load_dotenv
 
 from database.database import criar_banco
@@ -26,13 +24,13 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 if not DISCORD_TOKEN:
     raise RuntimeError(
-        "❌ DISCORD_TOKEN não encontrado no .env"
+        "❌ DISCORD_TOKEN não encontrado."
     )
 
 
 if not YOUTUBE_API_KEY:
     raise RuntimeError(
-        "❌ YOUTUBE_API_KEY não encontrada no .env"
+        "❌ YOUTUBE_API_KEY não encontrada."
     )
 
 
@@ -64,104 +62,120 @@ class Evelly(commands.Bot):
 
 
     # =====================================================
-    # SETUP
+    # SETUP HOOK
     # =====================================================
 
     async def setup_hook(self):
 
-        print("🔵 SETUP HOOK INICIADO", flush=True)
-
-        print()
-        print("=" * 60)
-        print("🔵 SETUP HOOK INICIADO")
-        print("=" * 60)
-        print()
+        print(
+            "🔵 SETUP HOOK INICIADO",
+            flush=True
+        )
 
 
         # -------------------------------------------------
-        # BANCO DE DADOS
+        # BANCO
         # -------------------------------------------------
 
-        print("🔄 Inicializando banco de dados...")
+        print(
+            "🔄 Inicializando banco de dados...",
+            flush=True
+        )
 
         criar_banco()
 
-        print("   ✅ Banco de dados pronto!")
-        print()
+        print(
+            "   ✅ Banco de dados pronto!",
+            flush=True
+        )
 
 
         # -------------------------------------------------
-        # COGS
-        # -------------------------------------------------
-
-        print("🔄 Carregando módulos...")
-        print()
-
-
         # GERAL
-        print("   🔄 Carregando geral...")
+        # -------------------------------------------------
+
+        print(
+            "🔄 Carregando módulo geral...",
+            flush=True
+        )
 
         await self.load_extension(
             "cogs.geral"
         )
 
-        print("   ✅ geral")
-        print()
+        print(
+            "   ✅ geral carregado!",
+            flush=True
+        )
 
 
+        # -------------------------------------------------
         # CONFIGURAÇÃO
-        print("   🔄 Carregando configuracao...")
+        # -------------------------------------------------
+
+        print(
+            "🔄 Carregando módulo configuracao...",
+            flush=True
+        )
 
         await self.load_extension(
             "cogs.configuracao"
         )
 
-        print("   ✅ configuracao")
-        print()
+        print(
+            "   ✅ configuracao carregado!",
+            flush=True
+        )
 
 
+        # -------------------------------------------------
         # YOUTUBE
-        print("   🔄 Carregando youtube...")
+        # -------------------------------------------------
+
+        print(
+            "🔄 Carregando módulo youtube...",
+            flush=True
+        )
 
         await self.load_extension(
             "cogs.youtube"
         )
 
-        print("   ✅ youtube")
-        print()
+        print(
+            "   ✅ youtube carregado!",
+            flush=True
+        )
 
 
         # -------------------------------------------------
-        # SINCRONIZAÇÃO
+        # SINCRONIZAR SLASH COMMANDS
         # -------------------------------------------------
 
-        print("🔄 Sincronizando comandos...")
+        print(
+            "🔄 Sincronizando comandos...",
+            flush=True
+        )
 
         synced = await self.tree.sync()
 
         print(
-            f"✅ {len(synced)} comando(s) sincronizado(s)!"
+            f"✅ {len(synced)} comando(s) sincronizado(s)!",
+            flush=True
         )
 
-        print()
 
         for command in synced:
 
             print(
-                f"   └─ /{command.name}"
+                f"   └─ /{command.name}",
+                flush=True
             )
 
-        print()
 
-
-        # -------------------------------------------------
-        # FINAL
-        # -------------------------------------------------
-
-        print("=" * 60)
-        print("🟢 SETUP HOOK FINALIZADO")
-        print("=" * 60)
-        print()
+        print(
+            "🟢 SETUP HOOK FINALIZADO",
+            flush=True
+        )
 
 
 # =========================================================
@@ -213,7 +227,7 @@ async def on_ready():
 
 
 # =========================================================
-# ERROS DOS SLASH COMMANDS
+# ERRO DOS SLASH COMMANDS
 # =========================================================
 
 @bot.tree.error
@@ -235,25 +249,44 @@ async def on_app_command_error(
         f"Erro: {error}"
     )
 
+    print("=" * 60)
     print()
 
 
-    if not interaction.response.is_done():
+    try:
 
-        await interaction.response.send_message(
-            "❌ Ocorreu um erro ao executar este comando.",
-            ephemeral=True
+        if not interaction.response.is_done():
+
+            await interaction.response.send_message(
+                "❌ Ocorreu um erro ao executar este comando.",
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.followup.send(
+                "❌ Ocorreu um erro ao executar este comando.",
+                ephemeral=True
+            )
+
+    except Exception as erro_resposta:
+
+        print(
+            f"❌ Não foi possível enviar "
+            f"a mensagem de erro: {erro_resposta}"
         )
 
 
 # =========================================================
-# INICIAR BOT
+# INICIALIZAÇÃO
 # =========================================================
 
-print()
-print("🚀 Iniciando Evelly...")
-print()
+print(
+    "🚀 Iniciando Evelly...",
+    flush=True
+)
 
-print("🟡 CHEGOU AO BOT.RUN()", flush=True)
 
-bot.run(DISCORD_TOKEN)
+bot.run(
+    DISCORD_TOKEN
+)
