@@ -25,9 +25,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-           - name: Testar conexão com Discord
+      - name: Testar conexão com Discord
         run: |
           python -c "import urllib.request; print(urllib.request.urlopen('https://discord.com/api/v10/gateway', timeout=15).read().decode())"
+
       - name: Iniciar Evelly
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
