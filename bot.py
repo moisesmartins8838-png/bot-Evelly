@@ -69,6 +69,8 @@ class Evelly(commands.Bot):
 
     async def setup_hook(self):
 
+        print("🔵 SETUP HOOK INICIADO", flush=True)
+
         print()
         print("=" * 60)
         print("🔵 SETUP HOOK INICIADO")
@@ -251,5 +253,7 @@ async def on_app_command_error(
 print()
 print("🚀 Iniciando Evelly...")
 print()
+
+print("🟡 CHEGOU AO BOT.RUN()", flush=True)
 
 bot.run(DISCORD_TOKEN)
