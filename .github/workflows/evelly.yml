@@ -25,9 +25,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-           - name: Testar conexão com Discord
+      - name: Testar conexão com Discord
         run: |
           curl -A "EvellyBot/1.0" -i --max-time 15 https://discord.com/api/v10/gateway
+
       - name: Iniciar Evelly
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
