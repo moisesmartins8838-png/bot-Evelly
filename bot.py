@@ -11,34 +11,26 @@ from database.database import criar_banco
 
 
 # =========================================================
-# CONFIGURAÇÕES
+# CONFIGURAÇÃO
 # =========================================================
 
 BASE_DIR = Path(__file__).resolve().parent
-
 ENV_FILE = BASE_DIR / ".env"
 
 load_dotenv(ENV_FILE)
 
 
-DISCORD_TOKEN = os.getenv(
-    "DISCORD_TOKEN"
-)
-
-YOUTUBE_API_KEY = os.getenv(
-    "YOUTUBE_API_KEY"
-)
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 
 if not DISCORD_TOKEN:
-
     raise RuntimeError(
         "❌ DISCORD_TOKEN não encontrado no .env"
     )
 
 
 if not YOUTUBE_API_KEY:
-
     raise RuntimeError(
         "❌ YOUTUBE_API_KEY não encontrada no .env"
     )
@@ -51,9 +43,7 @@ if not YOUTUBE_API_KEY:
 intents = discord.Intents.default()
 
 intents.message_content = True
-
 intents.members = True
-
 intents.presences = True
 
 
@@ -72,54 +62,86 @@ class Evelly(commands.Bot):
 
         self.youtube_api_key = YOUTUBE_API_KEY
 
+
+    # =====================================================
+    # SETUP
+    # =====================================================
+
     async def setup_hook(self):
 
         print()
+        print("=" * 60)
+        print("🔵 SETUP HOOK INICIADO")
+        print("=" * 60)
+        print()
+
+
+        # -------------------------------------------------
+        # BANCO DE DADOS
+        # -------------------------------------------------
+
         print("🔄 Inicializando banco de dados...")
 
         criar_banco()
 
-        print(
-            "   ✅ Banco de dados pronto!"
-        )
-
+        print("   ✅ Banco de dados pronto!")
         print()
+
+
+        # -------------------------------------------------
+        # COGS
+        # -------------------------------------------------
+
         print("🔄 Carregando módulos...")
+        print()
+
+
+        # GERAL
+        print("   🔄 Carregando geral...")
 
         await self.load_extension(
             "cogs.geral"
         )
 
-        print(
-            "   ✅ geral"
-        )
+        print("   ✅ geral")
+        print()
+
+
+        # CONFIGURAÇÃO
+        print("   🔄 Carregando configuracao...")
 
         await self.load_extension(
             "cogs.configuracao"
         )
 
-        print(
-            "   ✅ configuracao"
-        )
+        print("   ✅ configuracao")
+        print()
+
+
+        # YOUTUBE
+        print("   🔄 Carregando youtube...")
 
         await self.load_extension(
             "cogs.youtube"
         )
 
-        print(
-            "   ✅ youtube"
-        )
-
+        print("   ✅ youtube")
         print()
-        print(
-            "🔄 Sincronizando comandos..."
-        )
+
+
+        # -------------------------------------------------
+        # SINCRONIZAÇÃO
+        # -------------------------------------------------
+
+        print("🔄 Sincronizando comandos...")
 
         synced = await self.tree.sync()
 
         print(
             f"✅ {len(synced)} comando(s) sincronizado(s)!"
         )
+
+        print()
 
         for command in synced:
 
@@ -130,28 +152,34 @@ class Evelly(commands.Bot):
         print()
 
 
+        # -------------------------------------------------
+        # FINAL
+        # -------------------------------------------------
+
+        print("=" * 60)
+        print("🟢 SETUP HOOK FINALIZADO")
+        print("=" * 60)
+        print()
+
+
+# =========================================================
+# INSTÂNCIA
+# =========================================================
+
 bot = Evelly()
 
 
 # =========================================================
-# BOT ONLINE
+# EVENTO: BOT ONLINE
 # =========================================================
 
 @bot.event
 async def on_ready():
 
     print()
-    print(
-        "=" * 60
-    )
-
-    print(
-        "🤖 EVELLY ONLINE!"
-    )
-
-    print(
-        "=" * 60
-    )
+    print("=" * 60)
+    print("🤖 EVELLY ONLINE!")
+    print("=" * 60)
 
     print(
         f"👤 Nome: {bot.user}"
@@ -178,15 +206,12 @@ async def on_ready():
         "🎬 YouTube: ATIVO"
     )
 
-    print(
-        "=" * 60
-    )
-
+    print("=" * 60)
     print()
 
 
 # =========================================================
-# ERROS DE SLASH COMMAND
+# ERROS DOS SLASH COMMANDS
 # =========================================================
 
 @bot.tree.error
@@ -196,9 +221,9 @@ async def on_app_command_error(
 ):
 
     print()
-    print(
-        "❌ ERRO EM SLASH COMMAND"
-    )
+    print("=" * 60)
+    print("❌ ERRO EM SLASH COMMAND")
+    print("=" * 60)
 
     print(
         f"Comando: {interaction.command}"
@@ -210,6 +235,7 @@ async def on_app_command_error(
 
     print()
 
+
     if not interaction.response.is_done():
 
         await interaction.response.send_message(
@@ -219,9 +245,11 @@ async def on_app_command_error(
 
 
 # =========================================================
-# INICIAR
+# INICIAR BOT
 # =========================================================
 
-bot.run(
-    DISCORD_TOKEN
-)
+print()
+print("🚀 Iniciando Evelly...")
+print()
+
+bot.run(DISCORD_TOKEN)
