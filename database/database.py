@@ -4,10 +4,6 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 
-# =========================================================
-# CONFIGURAÇÃO
-# =========================================================
-
 load_dotenv()
 
 
@@ -38,17 +34,12 @@ supabase: Client = create_client(
 # =========================================================
 
 def criar_banco():
-    """
-    O banco agora fica no Supabase.
-    Esta função existe para manter compatibilidade
-    com o restante da Evelly.
-    """
 
     print("☁️ Banco Supabase conectado!")
 
 
 # =========================================================
-# SERVIDORES
+# SERVIDOR
 # =========================================================
 
 def criar_servidor(guild_id):
@@ -117,6 +108,10 @@ def pegar_servidor(guild_id):
         return None
 
 
+# =========================================================
+# CANAL DE NOTIFICAÇÃO
+# =========================================================
+
 def configurar_canal_notificacao(
     guild_id,
     canal_id
@@ -137,12 +132,48 @@ def configurar_canal_notificacao(
             f"☁️ Canal de notificação salvo: {canal_id}"
         )
 
+        return True
+
     except Exception as erro:
 
         print(
             f"❌ Erro salvando canal: {erro}"
         )
 
+        return False
+
+
+def remover_canal_notificacao(guild_id):
+
+    criar_servidor(guild_id)
+
+    try:
+
+        supabase.table("servidores").update({
+            "canal_notificacao": None
+        }).eq(
+            "id",
+            guild_id
+        ).execute()
+
+        print(
+            "☁️ Canal de notificação removido."
+        )
+
+        return True
+
+    except Exception as erro:
+
+        print(
+            f"❌ Erro removendo canal: {erro}"
+        )
+
+        return False
+
+
+# =========================================================
+# CARGO DE NOTIFICAÇÃO
+# =========================================================
 
 def configurar_cargo_notificacao(
     guild_id,
@@ -164,12 +195,48 @@ def configurar_cargo_notificacao(
             f"☁️ Cargo de notificação salvo: {cargo_id}"
         )
 
+        return True
+
     except Exception as erro:
 
         print(
             f"❌ Erro salvando cargo: {erro}"
         )
 
+        return False
+
+
+def remover_cargo_notificacao(guild_id):
+
+    criar_servidor(guild_id)
+
+    try:
+
+        supabase.table("servidores").update({
+            "cargo_notificacao": None
+        }).eq(
+            "id",
+            guild_id
+        ).execute()
+
+        print(
+            "☁️ Cargo de notificação removido."
+        )
+
+        return True
+
+    except Exception as erro:
+
+        print(
+            f"❌ Erro removendo cargo: {erro}"
+        )
+
+        return False
+
+
+# =========================================================
+# MENSAGEM DO YOUTUBE
+# =========================================================
 
 def configurar_mensagem_youtube(
     guild_id,
@@ -191,11 +258,43 @@ def configurar_mensagem_youtube(
             "☁️ Mensagem do YouTube salva."
         )
 
+        return True
+
     except Exception as erro:
 
         print(
             f"❌ Erro salvando mensagem: {erro}"
         )
+
+        return False
+
+
+def remover_mensagem_youtube(guild_id):
+
+    criar_servidor(guild_id)
+
+    try:
+
+        supabase.table("servidores").update({
+            "mensagem_youtube": None
+        }).eq(
+            "id",
+            guild_id
+        ).execute()
+
+        print(
+            "☁️ Mensagem personalizada removida."
+        )
+
+        return True
+
+    except Exception as erro:
+
+        print(
+            f"❌ Erro removendo mensagem: {erro}"
+        )
+
+        return False
 
 
 # =========================================================
