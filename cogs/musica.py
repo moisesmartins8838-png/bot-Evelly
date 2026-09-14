@@ -1,5 +1,7 @@
 import asyncio
+import os
 import re
+import tempfile
 import traceback
 from collections import deque
 from dataclasses import dataclass
@@ -81,58 +83,89 @@ def parece_link(texto: str) -> bool:
 def obter_info_youtube(consulta: str) -> dict:
     """
     Pesquisa no YouTube ou abre diretamente um link.
-    Essa função é síncrona, então será executada em thread
-    para não travar o bot.
+
+    Usa YOUTUBE_COOKIES quando disponível. O conteúdo é salvo
+    apenas em um arquivo temporário durante a consulta e o
+    arquivo é apagado ao final da operação.
     """
 
-    with yt_dlp.YoutubeDL(YTDL_OPTIONS) as ydl:
+    cookies = os.getenv("YOUTUBE_COOKIES")
+    arquivo_cookie = None
 
-        if parece_link(consulta):
-            alvo = consulta
+    try:
+        opcoes = dict(YTDL_OPTIONS)
+
+        if cookies:
+            arquivo_cookie = tempfile.NamedTemporaryFile(
+                mode="w",
+                encoding="utf-8",
+                suffix=".txt",
+                delete=False
+            )
+            arquivo_cookie.write(cookies)
+            arquivo_cookie.close()
+            opcoes["cookiefile"] = arquivo_cookie.name
+            print("[MÚSICA] Cookie do YouTube carregado.", flush=True)
         else:
-            alvo = f"ytsearch1:{consulta}"
-
-        info = ydl.extract_info(
-            alvo,
-            download=False
-        )
-
-        if not info:
-            raise RuntimeError(
-                "Não foi possível encontrar a música."
+            print(
+                "[MÚSICA] YOUTUBE_COOKIES não configurado. "
+                "Tentando sem cookie.",
+                flush=True
             )
 
-        # Pesquisa do YouTube retorna uma playlist de resultados.
-        if "entries" in info:
-            entradas = [
-                entrada
-                for entrada in info["entries"]
-                if entrada
-            ]
+        with yt_dlp.YoutubeDL(opcoes) as ydl:
+            if parece_link(consulta):
+                alvo = consulta
+            else:
+                alvo = f"ytsearch1:{consulta}"
 
-            if not entradas:
+            info = ydl.extract_info(alvo, download=False)
+
+            if not info:
                 raise RuntimeError(
-                    "Nenhum resultado encontrado no YouTube."
+                    "Não foi possível encontrar a música."
                 )
 
-            info = entradas[0]
+            if "entries" in info:
+                entradas = [
+                    entrada for entrada in info["entries"] if entrada
+                ]
 
-        url_audio = info.get("url")
+                if not entradas:
+                    raise RuntimeError(
+                        "Nenhum resultado encontrado no YouTube."
+                    )
 
-        if not url_audio:
-            raise RuntimeError(
-                "Não foi possível obter o áudio dessa música."
-            )
+                info = entradas[0]
 
-        return {
-            "titulo": info.get("title", "Música desconhecida"),
-            "url": url_audio,
-            "webpage_url": info.get(
-                "webpage_url",
-                consulta
-            ),
-            "duracao": info.get("duration"),
-        }
+            url_audio = info.get("url")
+
+            if not url_audio:
+                raise RuntimeError(
+                    "Não foi possível obter o áudio dessa música."
+                )
+
+            return {
+                "titulo": info.get("title", "Música desconhecida"),
+                "url": url_audio,
+                "webpage_url": info.get("webpage_url", consulta),
+                "duracao": info.get("duration"),
+            }
+
+    finally:
+        if arquivo_cookie:
+            try:
+                os.remove(arquivo_cookie.name)
+                print(
+                    "[MÚSICA] Arquivo temporário de cookies apagado.",
+                    flush=True
+                )
+            except OSError as erro:
+                print(
+                    f"[MÚSICA] Não foi possível apagar o cookie "
+                    f"temporário: {erro}",
+                    flush=True
+                )
 
 
 # ============================================================
@@ -619,44 +652,16 @@ class MusicaCog(commands.Cog):
         a música no YouTube.
         """
 
-        # Confirma a interação imediatamente.
-        #
-        # Em condições normais, is_done() deve ser False aqui.
-        # Se alguma outra rotina/instância já tiver confirmado esta
-        # interação, não tentamos confirmar novamente: seguimos usando
-        # followup, que é a forma correta de responder após uma interação
-        # já reconhecida.
-        interacao_ja_confirmada = interaction.response.is_done()
-
-        if interacao_ja_confirmada:
-            print(
-                f"[MÚSICA] Interação {interaction.id} já estava confirmada "
-                "antes do /musica."
-            )
-        else:
-            try:
-                await interaction.response.defer()
-            except discord.NotFound:
-                print(
-                    "[MÚSICA] A interação do /musica expirou antes do defer()."
-                )
-                return
-            except discord.HTTPException as erro:
-                # 40060 significa que a interação foi confirmada por outra
-                # rotina/instância entre o is_done() e o defer().
-                if getattr(erro, "code", None) == 40060:
-                    print(
-                        f"[MÚSICA] Interação {interaction.id} já foi "
-                        "confirmada externamente (40060). Continuando "
-                        "com followup."
-                    )
-                    interacao_ja_confirmada = True
-                else:
-                    print(
-                        f"[MÚSICA] Não foi possível confirmar a interação: "
-                        f"{erro}"
-                    )
-                    return
+        # Responde à interação o mais rápido possível.
+        # Não faça nenhuma operação demorada antes daqui.
+        try:
+            await interaction.response.defer()
+        except discord.NotFound:
+            print("[MÚSICA] A interação do /musica expirou antes do defer().")
+            return
+        except discord.HTTPException as erro:
+            print(f"[MÚSICA] Não foi possível confirmar a interação: {erro}")
+            return
 
         try:
             # Depois do defer(), TODAS as respostas devem usar followup.

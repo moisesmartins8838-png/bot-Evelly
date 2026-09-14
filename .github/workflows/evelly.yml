@@ -1,5 +1,3 @@
-name: Evelly Bot
-
 on:
   workflow_dispatch:
 
@@ -11,14 +9,12 @@ on:
     types:
       - evelly_restart
 
-
 # =========================================================
 # PERMISSÕES
 # =========================================================
 
 permissions:
   contents: write
-
 
 # =========================================================
 # EVITAR DUAS EVELLY AO MESMO TEMPO
@@ -27,7 +23,6 @@ permissions:
 concurrency:
   group: evelly-bot
   cancel-in-progress: true
-
 
 # =========================================================
 # JOB
@@ -43,8 +38,8 @@ jobs:
 
     # 350 minutos = 5h50
     # Menor que o limite oficial de 6 horas.
-    timeout-minutes: 350
 
+    timeout-minutes: 350
 
     steps:
 
@@ -55,17 +50,14 @@ jobs:
       - name: 📥 Baixar código da Evelly
         uses: actions/checkout@v6
 
-
       # ===================================================
       # PYTHON
       # ===================================================
 
       - name: 🐍 Configurar Python
         uses: actions/setup-python@v6
-
         with:
           python-version: "3.14"
-
 
       # ===================================================
       # DEPENDÊNCIAS
@@ -76,18 +68,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-
       # ===================================================
       # TESTAR DISCORD
       # ===================================================
 
       - name: 🌐 Testar conexão com Discord
         run: |
+          curl -A "EvellyBot/1.0" -i --max-time 15 https://discord.com/api/v10/gateway
+
           curl -A "EvellyBot/1.0" \
             -i \
             --max-time 15 \
             https://discord.com/api/v10/gateway
-
 
       # ===================================================
       # INICIAR EVELLY
@@ -100,6 +92,10 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
 
+          # Cookie do YouTube armazenado com segurança
+          # no GitHub Secrets.
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+
         run: |
           echo "=============================================="
           echo "🚀 INICIANDO EVELLY"
@@ -111,23 +107,19 @@ jobs:
 
           python bot.py
 
-
       # ===================================================
       # SOLICITAR NOVO CICLO
       # ===================================================
 
       - name: 🔄 Solicitar reinício da Evelly
         if: always()
-
         env:
           GH_TOKEN: ${{ github.token }}
 
         run: |
-
           echo "=============================================="
           echo "🔄 PREPARANDO NOVO CICLO"
           echo "=============================================="
-
           echo "📡 Solicitando nova execução..."
 
           gh api \
