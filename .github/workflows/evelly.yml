@@ -82,6 +82,7 @@ jobs:
 
           python --version
           python -m pip show yt-dlp
+          python -m pip show bgutil-ytdlp-pot-provider
           bun --version
           node --version
           npm --version
@@ -106,10 +107,12 @@ jobs:
 
           echo ""
           echo "📦 Instalando dependências do provider..."
+
           npm ci
 
           echo ""
           echo "🛠️ Compilando provider..."
+
           npx tsc
 
           echo ""
@@ -124,6 +127,7 @@ jobs:
 
           echo ""
           echo "⏳ Aguardando servidor..."
+
           sleep 5
 
           echo ""
@@ -174,7 +178,7 @@ jobs:
           echo "=============================================="
 
       # ==========================================
-      # TESTAR YT-DLP
+      # TESTAR YT-DLP + PO TOKEN
       # ==========================================
       - name: 📺 Testar yt-dlp
         run: |
@@ -193,6 +197,20 @@ jobs:
           node --version
 
           echo ""
+          echo "=============================================="
+          echo "🔐 TESTANDO PO TOKEN PROVIDER"
+          echo "=============================================="
+
+          python -m yt_dlp \
+            --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
+            --verbose \
+            --skip-download \
+            "https://www.youtube.com/watch?v=eyBhxuONsOA" \
+            2>&1 | grep -Ei "pot|bgutil|token|youtube" | head -n 100 || true
+
+          echo ""
+          echo "=============================================="
+          echo "🔐 FIM DO TESTE PO TOKEN"
           echo "=============================================="
 
       # ==========================================
@@ -213,8 +231,10 @@ jobs:
           echo "=============================================="
           echo "🚀 INICIANDO EVELLY"
           echo "=============================================="
+
           echo "⏱️ Tempo máximo deste ciclo: 5h50"
           echo "🔄 Após o ciclo, uma nova execução será criada."
+
           echo "=============================================="
           echo ""
 
@@ -241,4 +261,5 @@ jobs:
             -f event_type="evelly_restart"
 
           echo "✅ Novo ciclo solicitado!"
+
           echo "=============================================="
