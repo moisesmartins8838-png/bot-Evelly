@@ -213,12 +213,13 @@ jobs:
           echo "=============================================="
 
           python -m yt_dlp \
-            --js-runtimes node \
-            --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
-            --verbose \
-            --skip-download \
-            "https://www.youtube.com/watch?v=eyBhxuONsOA" \
-            2>&1 | grep -Ei "pot|bgutil|token|javascript|runtime|youtube" | head -n 120 || true
+  --js-runtimes node \
+  --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
+  --cookies "$RUNNER_TEMP/youtube_cookies.txt" \
+  --verbose \
+  --skip-download \
+  "https://www.youtube.com/watch?v=eyBhxuONsOA" \
+  2>&1 | grep -Ei "pot|bgutil|token|javascript|runtime|youtube|cookie|login" | head -n 150 || true
 
           echo ""
           echo "=============================================="
