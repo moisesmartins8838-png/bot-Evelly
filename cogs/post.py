@@ -21,56 +21,17 @@ SUPABASE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY")
 
 BUCKET = "post-files"
 
-# ============================================================
-# IMPORTANTE
-# ============================================================
-#
-# O link NÃO fica salvo no botão.
-#
-# O botão guarda apenas o caminho do arquivo no Supabase.
-#
-# Quando alguém clicar:
-#
-#     botão
-#       ↓
-#     Evelly
-#       ↓
-#     gera novo link privado
-#       ↓
-#     usuário recebe o download
-#
-# Dessa forma o botão pode continuar funcionando
-# indefinidamente enquanto o arquivo existir no bucket.
-#
-# ============================================================
-
-# Tempo do link gerado quando alguém clicar.
-#
-# Isso NÃO limita o botão.
-#
-# É apenas o tempo de vida daquele link específico.
-#
-# 1 hora.
-#
-# Depois disso, basta clicar novamente no botão
-# para a Evelly gerar outro link.
-#
-TEMPO_LINK = 3600
-
 
 # ============================================================
 # VALIDAR SUPABASE
 # ============================================================
 
 if not SUPABASE_URL:
-
     raise RuntimeError(
         "❌ SUPABASE_URL não foi encontrado no .env"
     )
 
-
 if not SUPABASE_KEY:
-
     raise RuntimeError(
         "❌ SUPABASE_PUBLISHABLE_KEY não foi encontrado no .env"
     )
@@ -91,7 +52,6 @@ supabase = create_client(
 # ============================================================
 
 EXTENSOES_IMAGEM = {
-
     ".png",
     ".jpg",
     ".jpeg",
@@ -99,29 +59,21 @@ EXTENSOES_IMAGEM = {
     ".gif"
 }
 
-
 EXTENSOES_VIDEO = {
-
     ".mp4",
     ".mov",
     ".webm",
     ".mkv"
 }
 
-
-# ============================================================
-# ARQUIVOS COMPACTADOS
-# ============================================================
-
 EXTENSOES_COMPACTADOS = {
-
     ".zip",
     ".rar"
 }
 
 
 # ============================================================
-# EXTENSÃO
+# FUNÇÃO — EXTENSÃO
 # ============================================================
 
 def pegar_extensao(nome):
@@ -129,39 +81,25 @@ def pegar_extensao(nome):
     nome = nome.lower()
 
     if "." not in nome:
-
         return ""
 
-    return "." + nome.rsplit(
-        ".",
-        1
-    )[1]
+    return "." + nome.rsplit(".", 1)[1]
 
 
 # ============================================================
-# TAMANHO
+# FUNÇÃO — TAMANHO
 # ============================================================
 
 def formatar_tamanho(tamanho):
 
     if tamanho < 1024:
-
         return f"{tamanho} B"
 
-
     if tamanho < 1024 * 1024:
-
-        return (
-            f"{tamanho / 1024:.1f} KB"
-        )
-
+        return f"{tamanho / 1024:.1f} KB"
 
     if tamanho < 1024 * 1024 * 1024:
-
-        return (
-            f"{tamanho / (1024 * 1024):.1f} MB"
-        )
-
+        return f"{tamanho / (1024 * 1024):.1f} MB"
 
     return (
         f"{tamanho / (1024 * 1024 * 1024):.1f} GB"
@@ -169,7 +107,7 @@ def formatar_tamanho(tamanho):
 
 
 # ============================================================
-# CONTENT TYPE
+# FUNÇÃO — CONTENT TYPE
 # ============================================================
 
 def pegar_content_type(arquivo):
@@ -178,155 +116,35 @@ def pegar_content_type(arquivo):
         arquivo.filename
     )
 
-
     tipos = {
 
-        # Imagens
-        ".png":
-            "image/png",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
 
-        ".jpg":
-            "image/jpeg",
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".webm": "video/webm",
+        ".mkv": "video/x-matroska",
 
-        ".jpeg":
-            "image/jpeg",
+        ".rar": "application/vnd.rar",
+        ".zip": "application/zip",
+        ".7z": "application/x-7z-compressed",
 
-        ".webp":
-            "image/webp",
+        ".pdf": "application/pdf",
+        ".txt": "text/plain",
+        ".json": "application/json",
 
-        ".gif":
-            "image/gif",
-
-
-        # Vídeos
-        ".mp4":
-            "video/mp4",
-
-        ".mov":
-            "video/quicktime",
-
-        ".webm":
-            "video/webm",
-
-        ".mkv":
-            "video/x-matroska",
-
-
-        # Compactados
-        ".rar":
-            "application/vnd.rar",
-
-        ".zip":
-            "application/zip",
-
-        ".7z":
-            "application/x-7z-compressed",
-
-
-        # Outros
-        ".pdf":
-            "application/pdf",
-
-        ".txt":
-            "text/plain",
-
-        ".json":
-            "application/json",
-
-        ".lua":
-            "text/plain",
-
-        ".luac":
-            "application/octet-stream"
+        ".lua": "text/plain",
+        ".luac": "application/octet-stream"
     }
 
-
     return tipos.get(
-
         extensao,
-
         arquivo.content_type
-        or
-        "application/octet-stream"
-    )
-
-
-# ============================================================
-# GERAR LINK PRIVADO
-# ============================================================
-
-def criar_link_download(caminho):
-
-    resultado = (
-
-        supabase
-
-        .storage
-
-        .from_(BUCKET)
-
-        .create_signed_url(
-
-            caminho,
-
-            TEMPO_LINK
-        )
-    )
-
-
-    # --------------------------------------------------------
-    # Retorno em formato dict
-    # --------------------------------------------------------
-
-    if isinstance(
-        resultado,
-        dict
-    ):
-
-        url = (
-
-            resultado.get(
-                "signedURL"
-            )
-
-            or
-
-            resultado.get(
-                "signed_url"
-            )
-        )
-
-
-        if url:
-
-            return url
-
-
-    # --------------------------------------------------------
-    # Outros formatos
-    # --------------------------------------------------------
-
-    if hasattr(
-        resultado,
-        "signed_url"
-    ):
-
-        return resultado.signed_url
-
-
-    if hasattr(
-        resultado,
-        "signedURL"
-    ):
-
-        return resultado.signedURL
-
-
-    raise RuntimeError(
-
-        "❌ Supabase não retornou "
-        "uma URL assinada: "
-        f"{resultado}"
+        or "application/octet-stream"
     )
 
 
@@ -334,66 +152,42 @@ def criar_link_download(caminho):
 # BOTÃO DE DOWNLOAD
 # ============================================================
 
-class BotaoDownload(
-    discord.ui.Button
-):
+class BotaoDownload(discord.ui.Button):
 
     def __init__(
-
         self,
-
         numero,
-
         nome,
-
-        caminho
+        url_original
     ):
 
-        # ----------------------------------------------------
-        # IMPORTANTE:
-        #
-        # NÃO colocamos url= aqui.
-        #
-        # O Discord limita URL de botão a 512 caracteres.
-        #
-        # O Supabase gera URLs muito maiores.
-        #
-        # ----------------------------------------------------
+        nome_botao = nome
+
+        if len(nome_botao) > 65:
+            nome_botao = (
+                nome_botao[:62]
+                + "..."
+            )
 
         super().__init__(
-
             label=(
-
-                f"⬇️ {numero} • {nome}"
+                f"⬇️ {numero} • "
+                f"{nome_botao}"
             ),
-
-            style=(
-                discord.ButtonStyle.secondary
-            ),
-
+            style=discord.ButtonStyle.secondary,
             custom_id=(
-
-                "evelly_download_"
+                f"evelly_download_"
                 f"{uuid.uuid4().hex}"
             )
         )
 
-
         self.numero = numero
-
         self.nome_arquivo = nome
+        self.url_original = url_original
 
-        self.caminho = caminho
-
-
-    # ========================================================
-    # CLICK DO BOTÃO
-    # ========================================================
 
     async def callback(
-
         self,
-
         interaction: discord.Interaction
     ):
 
@@ -418,20 +212,38 @@ class BotaoDownload(
         )
 
         print(
-            f"📂 Caminho: {self.caminho}",
+            "🔗 Usando URL original do Discord",
             flush=True
         )
 
 
         # ====================================================
-        # RESPONDER AO BOTÃO
+        # RESPONDER AO CLIQUE
         # ====================================================
 
         try:
 
-            await interaction.response.defer(
-
+            await interaction.response.send_message(
+                content=None,
+                embed=discord.Embed(
+                    title="⬇️ Download do arquivo",
+                    description=(
+                        f"📦 **{self.nome_arquivo}**\n\n"
+                        "Clique no botão abaixo "
+                        "para baixar o arquivo."
+                    ),
+                    color=discord.Color.dark_grey()
+                ),
+                view=DownloadOriginalView(
+                    self.nome_arquivo,
+                    self.url_original
+                ),
                 ephemeral=True
+            )
+
+            print(
+                "✅ Link original enviado ao usuário!",
+                flush=True
             )
 
         except discord.NotFound:
@@ -441,52 +253,27 @@ class BotaoDownload(
                 flush=True
             )
 
-            return
+        except discord.HTTPException as e:
 
+            print(
+                "❌ ERRO HTTP AO ENVIAR DOWNLOAD",
+                flush=True
+            )
+
+            print(
+                f"Status: {e.status}",
+                flush=True
+            )
+
+            print(
+                f"Erro: {e}",
+                flush=True
+            )
 
         except Exception as e:
 
             print(
-                "❌ Erro ao responder botão:",
-                flush=True
-            )
-
-            print(
-                f"{type(e).__name__}: {e}",
-                flush=True
-            )
-
-            return
-
-
-        # ====================================================
-        # GERAR NOVO LINK
-        # ====================================================
-
-        try:
-
-            print(
-                "🔐 Gerando novo link privado...",
-                flush=True
-            )
-
-
-            url = criar_link_download(
-
-                self.caminho
-            )
-
-
-            print(
-                "✅ Novo link privado criado!",
-                flush=True
-            )
-
-
-        except Exception as e:
-
-            print(
-                "❌ ERRO AO GERAR LINK",
+                "❌ ERRO AO ENVIAR DOWNLOAD",
                 flush=True
             )
 
@@ -502,135 +289,6 @@ class BotaoDownload(
 
             traceback.print_exc()
 
-
-            try:
-
-                await interaction.edit_original_response(
-
-                    content=(
-
-                        "❌ **Não foi possível "
-                        "preparar o download.**\n\n"
-
-                        "Tente clicar novamente."
-                    )
-                )
-
-            except Exception:
-
-                pass
-
-
-            return
-
-
-        # ====================================================
-        # EMBED PRIVADO DE DOWNLOAD
-        # ====================================================
-
-        try:
-
-            embed = discord.Embed(
-
-                title=(
-                    "🔐 Download privado"
-                ),
-
-                description=(
-
-                    f"📦 **{self.nome_arquivo}**\n\n"
-
-                    "O arquivo está armazenado "
-                    "de forma privada.\n\n"
-
-                    "Clique abaixo para baixar."
-                ),
-
-                color=discord.Color.dark_grey()
-            )
-
-
-            embed.set_footer(
-
-                text=(
-                    "Evelly LN • "
-                    "Download seguro"
-                )
-            )
-
-
-            # ------------------------------------------------
-            # BOTÃO INTERNO COM LINK
-            #
-            # Aqui a URL fica somente nessa resposta
-            # efêmera, não no post público.
-            #
-            # ------------------------------------------------
-
-            view = discord.ui.View(
-
-                timeout=300
-            )
-
-
-            botao = discord.ui.Button(
-
-                label=(
-                    "⬇️ BAIXAR ARQUIVO"
-                ),
-
-                style=(
-                    discord.ButtonStyle.link
-                ),
-
-                url=url
-            )
-
-
-            view.add_item(
-                botao
-            )
-
-
-            await interaction.edit_original_response(
-
-                content=None,
-
-                embed=embed,
-
-                view=view
-            )
-
-
-            print(
-                "✅ Download privado enviado!",
-                flush=True
-            )
-
-
-        except discord.NotFound:
-
-            print(
-                "❌ A interação do download expirou.",
-                flush=True
-            )
-
-
-        except Exception as e:
-
-            print(
-                "❌ ERRO AO ENVIAR DOWNLOAD",
-                flush=True
-            )
-
-            print(
-                f"{type(e).__name__}: {e}",
-                flush=True
-            )
-
-            traceback.print_exc()
-
-
         print(
             "==============================================",
             flush=True
@@ -638,7 +296,36 @@ class BotaoDownload(
 
 
 # ============================================================
-# VIEW DOS DOWNLOADS
+# VIEW — BOTÃO FINAL DO DOWNLOAD
+# ============================================================
+
+class DownloadOriginalView(
+    discord.ui.View
+):
+
+    def __init__(
+        self,
+        nome,
+        url
+    ):
+
+        super().__init__(
+            timeout=300
+        )
+
+        botao = discord.ui.Button(
+            label="⬇️ BAIXAR ARQUIVO",
+            style=discord.ButtonStyle.link,
+            url=url
+        )
+
+        self.add_item(
+            botao
+        )
+
+
+# ============================================================
+# VIEW DOS POSTS
 # ============================================================
 
 class DownloadView(
@@ -646,76 +333,37 @@ class DownloadView(
 ):
 
     def __init__(
-
         self,
-
         arquivos
     ):
 
         super().__init__(
-
             timeout=None
         )
 
-
         for numero, arquivo in enumerate(
-
             arquivos,
-
             start=1
         ):
 
-            nome = arquivo[
-                "nome"
+            nome = arquivo["nome"]
+
+            url_original = arquivo[
+                "url_original"
             ]
-
-
-            caminho = arquivo[
-                "caminho"
-            ]
-
-
-            # ------------------------------------------------
-            # Limitar tamanho do texto do botão
-            # ------------------------------------------------
-
-            nome_botao = nome
-
-
-            if len(nome_botao) > 65:
-
-                nome_botao = (
-
-                    nome_botao[:62]
-
-                    + "..."
-                )
-
-
-            # ------------------------------------------------
-            # Linha
-            # ------------------------------------------------
 
             linha = (
-
                 (numero - 1)
-
                 // 5
             )
 
-
             botao = BotaoDownload(
-
                 numero=numero,
-
-                nome=nome_botao,
-
-                caminho=caminho
+                nome=nome,
+                url_original=url_original
             )
 
-
             botao.row = linha
-
 
             self.add_item(
                 botao
@@ -726,14 +374,10 @@ class DownloadView(
 # COG POST
 # ============================================================
 
-class Post(
-    commands.Cog
-):
+class Post(commands.Cog):
 
     def __init__(
-
         self,
-
         bot: commands.Bot
     ):
 
@@ -745,52 +389,65 @@ class Post(
     # ========================================================
 
     @app_commands.command(
-
         name="post",
-
         description=(
-
             "Publica até 10 arquivos "
             "em um Embed."
         )
     )
 
     @app_commands.default_permissions(
-
         administrator=True
     )
 
     @app_commands.describe(
 
         titulo=(
-
             "Título da publicação"
         ),
 
         arquivo1=(
-
             "Primeiro arquivo "
             "(obrigatório)"
         ),
 
-        arquivo2="Segundo arquivo",
+        arquivo2=(
+            "Segundo arquivo"
+        ),
 
-        arquivo3="Terceiro arquivo",
+        arquivo3=(
+            "Terceiro arquivo"
+        ),
 
-        arquivo4="Quarto arquivo",
+        arquivo4=(
+            "Quarto arquivo"
+        ),
 
-        arquivo5="Quinto arquivo",
+        arquivo5=(
+            "Quinto arquivo"
+        ),
 
-        arquivo6="Sexto arquivo",
+        arquivo6=(
+            "Sexto arquivo"
+        ),
 
-        arquivo7="Sétimo arquivo",
+        arquivo7=(
+            "Sétimo arquivo"
+        ),
 
-        arquivo8="Oitavo arquivo",
+        arquivo8=(
+            "Oitavo arquivo"
+        ),
 
-        arquivo9="Nono arquivo",
+        arquivo9=(
+            "Nono arquivo"
+        ),
 
-        arquivo10="Décimo arquivo"
+        arquivo10=(
+            "Décimo arquivo"
+        )
     )
+
 
     async def post(
 
@@ -844,7 +501,7 @@ class Post(
 
 
         # ====================================================
-        # ARQUIVOS
+        # LISTA DOS ARQUIVOS
         # ====================================================
 
         arquivos = [
@@ -859,16 +516,16 @@ class Post(
             arquivo8,
             arquivo9,
             arquivo10
+
         ]
 
 
         arquivos = [
 
             arquivo
-
             for arquivo in arquivos
-
             if arquivo is not None
+
         ]
 
 
@@ -884,25 +541,18 @@ class Post(
 
 
         # ====================================================
-        # ACK
+        # ACK DA INTERAÇÃO
         # ====================================================
         #
-        # O bot.py já respondeu imediatamente à interação.
+        # A bot.py atual da Evelly já faz o ACK antecipado
+        # para /post.
         #
-        # Por isso NÃO usamos:
-        #
-        # interaction.response.send_message()
-        #
-        # nem:
-        #
-        # interaction.response.defer()
-        #
-        # aqui.
+        # Portanto NÃO respondemos novamente aqui.
         #
         # ====================================================
 
         print(
-            "✅ /post já recebeu ACK antecipado.",
+            "✅ /post recebeu ACK antecipado.",
             flush=True
         )
 
@@ -912,29 +562,21 @@ class Post(
         )
 
 
-        # ====================================================
-        # PROCESSAMENTO
-        # ====================================================
-
         try:
 
             # =================================================
-            # CLASSIFICAR
+            # CLASSIFICAR ARQUIVOS
             # =================================================
 
             imagens = []
-
             videos = []
-
-            outros = []
-
             compactados = []
+            outros = []
 
 
             for arquivo in arquivos:
 
                 extensao = pegar_extensao(
-
                     arquivo.filename
                 )
 
@@ -1003,20 +645,15 @@ class Post(
 
 
             tipo_texto = (
-
-                "\n".join(
-                    tipos
-                )
-
+                "\n".join(tipos)
                 if tipos
-
                 else
                 "📦 Arquivo"
             )
 
 
             # =================================================
-            # UPLOAD
+            # UPLOAD DOS ARQUIVOS
             # =================================================
 
             arquivos_publicados = []
@@ -1025,9 +662,7 @@ class Post(
 
 
             for numero, arquivo in enumerate(
-
                 arquivos,
-
                 start=1
             ):
 
@@ -1042,8 +677,7 @@ class Post(
                 )
 
                 print(
-                    f"📄 Arquivo: "
-                    f"{arquivo.filename}",
+                    f"📄 Arquivo: {arquivo.filename}",
                     flush=True
                 )
 
@@ -1054,26 +688,37 @@ class Post(
                 )
 
 
-                # --------------------------------------------
+                # =================================================
+                # URL ORIGINAL DO DISCORD
+                # =================================================
+
+                url_original = arquivo.url
+
+
+                print(
+                    "🔗 URL original do Discord capturada.",
+                    flush=True
+                )
+
+
+                # =================================================
                 # LER ARQUIVO
-                # --------------------------------------------
+                # =================================================
 
                 dados = await arquivo.read()
 
 
                 print(
-                    f"💾 Bytes lidos: "
-                    f"{len(dados)}",
+                    f"💾 Bytes lidos: {len(dados)}",
                     flush=True
                 )
 
 
-                # --------------------------------------------
+                # =================================================
                 # CONTENT TYPE
-                # --------------------------------------------
+                # =================================================
 
                 content_type = (
-
                     pegar_content_type(
                         arquivo
                     )
@@ -1081,78 +726,62 @@ class Post(
 
 
                 print(
-                    f"📌 Content-Type: "
-                    f"{content_type}",
+                    f"📌 Content-Type: {content_type}",
                     flush=True
                 )
 
 
-                # --------------------------------------------
-                # LIMPAR NOME
-                # --------------------------------------------
+                # =================================================
+                # NOME LIMPO
+                # =================================================
 
                 nome_limpo = (
 
                     arquivo.filename
-
                     .replace(
                         "/",
                         "_"
                     )
-
                     .replace(
                         "\\",
                         "_"
                     )
+
                 )
 
 
-                # --------------------------------------------
-                # ID ÚNICO
-                # --------------------------------------------
-
                 identificador = (
-
                     uuid.uuid4().hex
                 )
 
 
-                # --------------------------------------------
-                # GUILD ID
-                # --------------------------------------------
-
                 guild_id = (
 
                     interaction.guild.id
-
                     if interaction.guild
-
                     else 0
+
                 )
 
-
-                # --------------------------------------------
-                # CAMINHO
-                # --------------------------------------------
 
                 caminho = (
 
                     f"{guild_id}/"
                     f"{identificador}_"
                     f"{nome_limpo}"
+
                 )
 
 
                 print(
-                    f"📂 Caminho: "
-                    f"{caminho}",
+                    f"📂 Caminho Supabase: {caminho}",
                     flush=True
                 )
 
 
-                # --------------------------------------------
-                # UPLOAD SUPABASE
-                # --------------------------------------------
+                # =================================================
+                # UPLOAD PARA SUPABASE
+                # =================================================
 
                 print(
                     "☁️ Enviando para Supabase...",
@@ -1163,11 +792,8 @@ class Post(
                 resultado_upload = (
 
                     supabase
-
                     .storage
-
                     .from_(BUCKET)
-
                     .upload(
 
                         caminho,
@@ -1175,14 +801,15 @@ class Post(
                         dados,
 
                         {
-
                             "content-type":
                                 content_type,
 
                             "upsert":
                                 "false"
                         }
+
                     )
+
                 )
 
 
@@ -1199,9 +826,9 @@ class Post(
                 )
 
 
-                # --------------------------------------------
-                # SALVAR INFORMAÇÕES
-                # --------------------------------------------
+                # =================================================
+                # GUARDAR INFORMAÇÕES
+                # =================================================
 
                 arquivos_publicados.append(
 
@@ -1209,6 +836,9 @@ class Post(
 
                         "nome":
                             arquivo.filename,
+
+                        "url_original":
+                            url_original,
 
                         "tamanho":
                             arquivo.size,
@@ -1218,51 +848,83 @@ class Post(
 
                         "content_type":
                             content_type
+
                     }
+
                 )
 
 
-                # --------------------------------------------
+                # =================================================
                 # PRIMEIRA IMAGEM
-                # --------------------------------------------
+                # =================================================
+                #
+                # Para a imagem do Embed continuamos usando
+                # o arquivo armazenado no Supabase.
+                #
+                # O download, porém, usa o URL original.
+                #
+                # =================================================
 
                 extensao = pegar_extensao(
-
                     arquivo.filename
                 )
 
 
                 if (
 
-                    primeira_imagem_url is None
+                    primeira_imagem_url
+                    is None
 
-                    and extensao in EXTENSOES_IMAGEM
+                    and
+                    extensao
+                    in
+                    EXTENSOES_IMAGEM
+
                 ):
 
-                    print(
-                        "🖼️ Criando link da "
-                        "imagem principal...",
-                        flush=True
-                    )
+                    try:
 
+                        public_url = (
 
-                    primeira_imagem_url = (
+                            supabase
+                            .storage
+                            .from_(BUCKET)
+                            .get_public_url(
+                                caminho
+                            )
 
-                        criar_link_download(
-
-                            caminho
                         )
-                    )
 
+                        if isinstance(
+                            public_url,
+                            str
+                        ):
 
-                    print(
-                        "✅ Link da imagem criado!",
-                        flush=True
-                    )
+                            primeira_imagem_url = (
+                                public_url
+                            )
+
+                        elif hasattr(
+                            public_url,
+                            "public_url"
+                        ):
+
+                            primeira_imagem_url = (
+                                public_url.public_url
+                            )
+
+                    except Exception:
+
+                        print(
+                            "⚠️ Não foi possível "
+                            "obter URL pública "
+                            "da imagem.",
+                            flush=True
+                        )
 
 
             # =================================================
-            # TEXTO QUANTIDADE
+            # QUANTIDADE
             # =================================================
 
             if quantidade == 1:
@@ -1274,7 +936,6 @@ class Post(
             else:
 
                 quantidade_texto = (
-
                     f"{quantidade} arquivos"
                 )
 
@@ -1293,9 +954,11 @@ class Post(
 
                     "Use os botões abaixo "
                     "para baixar os arquivos."
+
                 ),
 
                 color=discord.Color.dark_grey()
+
             )
 
 
@@ -1308,64 +971,57 @@ class Post(
                 embed.set_author(
 
                     name=(
-
                         interaction.guild.name
                     )
+
                 )
 
 
             # =================================================
-            # CAMPO — QUANTIDADE
+            # CAMPOS PRINCIPAIS
             # =================================================
 
             embed.add_field(
 
                 name="📦 Arquivos",
 
-                value=quantidade_texto,
+                value=(
+                    quantidade_texto
+                ),
 
                 inline=True
+
             )
 
-
-            # =================================================
-            # CAMPO — CONTEÚDO
-            # =================================================
 
             embed.add_field(
 
                 name="📌 Conteúdo",
 
-                value=tipo_texto,
+                value=(
+                    tipo_texto
+                ),
 
                 inline=True
+
             )
 
-
-            # =================================================
-            # CAMPO — AUTOR
-            # =================================================
 
             embed.add_field(
 
                 name="👤 Publicado por",
 
-                value=interaction.user.mention,
+                value=(
+                    interaction.user.mention
+                ),
 
                 inline=True
+
             )
 
 
             # =================================================
-            # LISTA DE COMPACTADOS
-            # =================================================
-            #
-            # SOMENTE ZIP E RAR.
-            #
-            # Se não existir ZIP/RAR:
-            #
-            # NÃO adiciona campo.
-            #
+            # SOMENTE ZIP E RAR
             # =================================================
 
             if compactados:
@@ -1375,23 +1031,21 @@ class Post(
 
                 for arquivo in compactados:
 
-                    nome = arquivo.filename
+                    nome = (
+                        arquivo.filename
+                    )
 
 
                     if len(nome) > 55:
 
                         nome = (
-
                             nome[:52]
-
                             + "..."
                         )
 
 
                     tamanho = (
-
                         formatar_tamanho(
-
                             arquivo.size
                         )
                     )
@@ -1401,6 +1055,7 @@ class Post(
 
                         f"📦 **{nome}** "
                         f"• `{tamanho}`"
+
                     )
 
 
@@ -1417,6 +1072,7 @@ class Post(
                     ),
 
                     inline=False
+
                 )
 
 
@@ -1431,11 +1087,11 @@ class Post(
                     embed.set_thumbnail(
 
                         url=(
-
                             interaction.guild
                             .icon
                             .url
                         )
+
                     )
 
 
@@ -1450,6 +1106,7 @@ class Post(
                     url=(
                         primeira_imagem_url
                     )
+
                 )
 
 
@@ -1460,25 +1117,24 @@ class Post(
             embed.set_footer(
 
                 text=(
-
                     "© Evelly LN • "
                     "Todos os direitos reservados"
                 )
+
             )
 
 
             # =================================================
-            # BOTÕES
+            # VIEW DE DOWNLOAD
             # =================================================
 
             view = DownloadView(
-
                 arquivos_publicados
             )
 
 
             # =================================================
-            # PUBLICAR
+            # PUBLICAR POST
             # =================================================
 
             print(
@@ -1497,12 +1153,12 @@ class Post(
             )
 
             print(
-                "🔒 Arquivos: Supabase privado",
+                "🔒 Armazenamento: Supabase",
                 flush=True
             )
 
             print(
-                "⬇️ Botões: download dinâmico",
+                "🔗 Download: URL ORIGINAL DO DISCORD",
                 flush=True
             )
 
@@ -1512,6 +1168,7 @@ class Post(
                 embed=embed,
 
                 view=view
+
             )
 
 
@@ -1519,6 +1176,7 @@ class Post(
                 "✅ POST PUBLICADO!",
                 flush=True
             )
+
 
             print(
                 f"🆔 ID: {mensagem.id}",
@@ -1553,7 +1211,7 @@ class Post(
 
 
             # =================================================
-            # ATUALIZAR RESPOSTA ORIGINAL
+            # ATUALIZAR RESPOSTA EPHEMERAL
             # =================================================
 
             try:
@@ -1569,9 +1227,10 @@ class Post(
 
                         "🔒 Arquivos armazenados "
                         "com segurança."
-                    )
-                )
 
+                    )
+
+                )
 
             except Exception as e:
 
@@ -1582,6 +1241,7 @@ class Post(
                     f"temporária: {e}",
 
                     flush=True
+
                 )
 
 
@@ -1602,7 +1262,7 @@ class Post(
 
 
         # ====================================================
-        # ERRO HTTP
+        # ERRO HTTP DISCORD
         # ====================================================
 
         except discord.HTTPException as e:
@@ -1629,7 +1289,6 @@ class Post(
 
             traceback.print_exc()
 
-
             print(
                 "==============================================",
                 flush=True
@@ -1643,13 +1302,14 @@ class Post(
                     content=(
 
                         "❌ **Erro ao publicar "
-                        "o post.**\n\n"
+                        "o post.**\n"
 
                         "Verifique o terminal "
                         "da Evelly."
-                    )
-                )
 
+                    )
+
+                )
 
             except Exception:
 
@@ -1657,7 +1317,7 @@ class Post(
 
 
         # ====================================================
-        # ERRO GERAL
+        # ERRO SUPABASE / GERAL
         # ====================================================
 
         except Exception as e:
@@ -1690,7 +1350,6 @@ class Post(
 
             traceback.print_exc()
 
-
             print(
                 "==============================================",
                 flush=True
@@ -1710,9 +1369,10 @@ class Post(
 
                         "Veja o terminal da Evelly "
                         "para mais detalhes."
-                    )
-                )
 
+                    )
+
+                )
 
             except Exception as erro_resposta:
 
@@ -1723,6 +1383,7 @@ class Post(
                     "temporária.",
 
                     flush=True
+
                 )
 
                 print(
@@ -1736,19 +1397,14 @@ class Post(
 # ============================================================
 
 async def setup(
-
     bot: commands.Bot
 ):
 
     await bot.add_cog(
-
         Post(bot)
     )
 
-
     print(
-
         "✅ Sistema /post carregado!",
-
         flush=True
     )
