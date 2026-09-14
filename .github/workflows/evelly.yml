@@ -32,6 +32,7 @@ jobs:
       - name: 📥 Baixar código da Evelly
         uses: actions/checkout@v6
 
+
       # ==========================================
       # PYTHON
       # ==========================================
@@ -40,11 +41,13 @@ jobs:
         with:
           python-version: "3.14"
 
+
       # ==========================================
       # BUN
       # ==========================================
       - name: 🟣 Instalar Bun
         uses: oven-sh/setup-bun@v2
+
 
       # ==========================================
       # NODE.JS
@@ -53,6 +56,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "22"
+
 
       # ==========================================
       # DEPENDÊNCIAS PYTHON
@@ -81,7 +85,13 @@ jobs:
           echo "=============================================="
 
           python --version
+
+          echo ""
+          echo "📺 yt-dlp:"
           python -m pip show yt-dlp
+
+          echo ""
+          echo "🔐 bgutil:"
           python -m pip show bgutil-ytdlp-pot-provider
 
           echo ""
@@ -97,6 +107,7 @@ jobs:
 
           echo ""
           echo "=============================================="
+
 
       # ==========================================
       # BGUTIL PO TOKEN SERVER
@@ -115,12 +126,10 @@ jobs:
 
           echo ""
           echo "📦 Instalando dependências do provider..."
-
           npm ci
 
           echo ""
           echo "🛠️ Compilando provider..."
-
           npx tsc
 
           echo ""
@@ -135,7 +144,6 @@ jobs:
 
           echo ""
           echo "⏳ Aguardando servidor..."
-
           sleep 5
 
           echo ""
@@ -149,6 +157,7 @@ jobs:
           echo "=============================================="
           echo "✅ PO TOKEN PROVIDER ONLINE"
           echo "=============================================="
+
 
       # ==========================================
       # FFMPEG
@@ -168,6 +177,44 @@ jobs:
           echo ""
           echo "=============================================="
 
+
+      # ==========================================
+      # PREPARAR COOKIES DO YOUTUBE
+      # ==========================================
+      - name: 🔐 Preparar cookies do YouTube
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          echo "=============================================="
+          echo "🔐 PREPARANDO COOKIES DO YOUTUBE"
+          echo "=============================================="
+
+          if [ -z "$YOUTUBE_COOKIES" ]; then
+            echo "❌ ERRO: YOUTUBE_COOKIES está vazio."
+            echo "❌ Verifique o secret YOUTUBE_COOKIES no GitHub."
+            exit 1
+          fi
+
+          printf '%s' "$YOUTUBE_COOKIES" > "$RUNNER_TEMP/youtube_cookies.txt"
+
+          if [ ! -s "$RUNNER_TEMP/youtube_cookies.txt" ]; then
+            echo "❌ ERRO: arquivo de cookies não foi criado."
+            exit 1
+          fi
+
+          echo "✅ Arquivo de cookies criado."
+          echo "📁 Arquivo temporário preparado."
+
+          echo ""
+          echo "📏 Tamanho do arquivo:"
+          wc -c < "$RUNNER_TEMP/youtube_cookies.txt"
+
+          echo ""
+          echo "=============================================="
+          echo "✅ COOKIES PREPARADOS"
+          echo "=============================================="
+
+
       # ==========================================
       # TESTAR DISCORD
       # ==========================================
@@ -184,6 +231,7 @@ jobs:
 
           echo ""
           echo "=============================================="
+
 
       # ==========================================
       # TESTAR YT-DLP + PO TOKEN
@@ -208,23 +256,64 @@ jobs:
           node -p "process.execPath"
 
           echo ""
+          echo "🍪 Arquivo de cookies:"
+          if [ -f "$RUNNER_TEMP/youtube_cookies.txt" ]; then
+            echo "✅ youtube_cookies.txt encontrado."
+            wc -c < "$RUNNER_TEMP/youtube_cookies.txt"
+          else
+            echo "❌ youtube_cookies.txt NÃO encontrado."
+            exit 1
+          fi
+
+          echo ""
           echo "=============================================="
           echo "🔐 TESTANDO PO TOKEN PROVIDER"
           echo "=============================================="
 
+          set +e
+
           python -m yt_dlp \
-  --js-runtimes node \
-  --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
-  --cookies "$RUNNER_TEMP/youtube_cookies.txt" \
-  --verbose \
-  --skip-download \
-  "https://www.youtube.com/watch?v=eyBhxuONsOA" \
-  2>&1 | grep -Ei "pot|bgutil|token|javascript|runtime|youtube|cookie|login" | head -n 150 || true
+            --js-runtimes node \
+            --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
+            --cookies "$RUNNER_TEMP/youtube_cookies.txt" \
+            --verbose \
+            --skip-download \
+            "https://www.youtube.com/watch?v=eyBhxuONsOA" \
+            2>&1 | tee "$RUNNER_TEMP/ytdlp-test.log"
+
+          YTDLP_EXIT=${PIPESTATUS[0]}
+
+          set -e
 
           echo ""
           echo "=============================================="
           echo "🔐 FIM DO TESTE PO TOKEN"
           echo "=============================================="
+
+          echo ""
+          echo "📊 Código de saída do yt-dlp: $YTDLP_EXIT"
+
+          echo ""
+          echo "=============================================="
+          echo "🔎 RESUMO DO DIAGNÓSTICO"
+          echo "=============================================="
+
+          grep -Ei \
+            "pot|bgutil|token|javascript|runtime|youtube|cookie|login|playability" \
+            "$RUNNER_TEMP/ytdlp-test.log" \
+            | head -n 180 || true
+
+          echo ""
+          echo "=============================================="
+
+          if [ "$YTDLP_EXIT" -ne 0 ]; then
+            echo "⚠️ O teste do yt-dlp falhou."
+            echo "⚠️ Isso NÃO impede o diagnóstico."
+            echo "⚠️ O log completo foi preservado acima."
+          else
+            echo "✅ TESTE DO YT-DLP CONCLUÍDO COM SUCESSO."
+          fi
+
 
       # ==========================================
       # INICIAR EVELLY
@@ -247,19 +336,25 @@ jobs:
 
           echo ""
           echo "📺 Runtime JavaScript: Node.js"
+
           node --version
           node -p "process.execPath"
+
+          echo ""
+          echo "🍪 YouTube Cookies: configurados"
 
           echo ""
           echo "=============================================="
 
           python bot.py
 
+
       # ==========================================
       # REINICIAR
       # ==========================================
       - name: 🔄 Solicitar reinício da Evelly
         if: always()
+
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -276,5 +371,4 @@ jobs:
             -f event_type="evelly_restart"
 
           echo "✅ Novo ciclo solicitado!"
-
           echo "=============================================="
