@@ -61,170 +61,8 @@ class Evelly(commands.Bot):
 
         self.youtube_api_key = YOUTUBE_API_KEY
 
-        self.comandos_sincronizados = False
-
-        self.tarefa_reinicio = None
-
-
     # ========================================================
-    # INTERACTION HANDLER
-    # ========================================================
-    #
-    # O /post recebe um ACK ANTES do processamento normal
-    # da CommandTree.
-    #
-    # Isso é importante porque o Discord exige uma resposta
-    # inicial da interação em aproximadamente 3 segundos.
-    #
-    # ========================================================
-
-    async def on_interaction(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        # ----------------------------------------------------
-        # Detectar slash command
-        # ----------------------------------------------------
-
-        if interaction.type == discord.InteractionType.application_command:
-
-            try:
-
-                dados = interaction.data
-
-                nome_comando = (
-                    dados.get("name")
-                    if isinstance(dados, dict)
-                    else None
-                )
-
-                # ------------------------------------------------
-                # SOMENTE /post
-                # ------------------------------------------------
-
-                if nome_comando == "post":
-
-                    print(
-                        "==============================================",
-                        flush=True
-                    )
-
-                    print(
-                        "⚡ ACK ANTECIPADO DO /POST",
-                        flush=True
-                    )
-
-                    print(
-                        f"🆔 Interaction ID: {interaction.id}",
-                        flush=True
-                    )
-
-                    print(
-                        f"👤 Usuário: {interaction.user}",
-                        flush=True
-                    )
-
-                    try:
-
-                        # ----------------------------------------
-                        # Resposta inicial IMEDIATA
-                        # ----------------------------------------
-
-                        await interaction.response.send_message(
-
-                            "⏳ **Preparando publicação...**\n"
-                            "☁️ Enviando arquivos para o armazenamento...",
-
-                            ephemeral=True
-
-                        )
-
-                        print(
-                            "✅ ACK do /post enviado com sucesso!",
-                            flush=True
-                        )
-
-                    except discord.NotFound as e:
-
-                        print(
-                            "❌ UNKNOWN INTERACTION NO ACK!",
-                            flush=True
-                        )
-
-                        print(
-                            f"Erro: {e}",
-                            flush=True
-                        )
-
-                        print(
-                            "==============================================",
-                            flush=True
-                        )
-
-                        return
-
-                    except discord.HTTPException as e:
-
-                        print(
-                            "❌ ERRO HTTP NO ACK DO /POST",
-                            flush=True
-                        )
-
-                        print(
-                            f"Status: {e.status}",
-                            flush=True
-                        )
-
-                        print(
-                            f"Erro: {e}",
-                            flush=True
-                        )
-
-                        print(
-                            "==============================================",
-                            flush=True
-                        )
-
-                        return
-
-                    print(
-                        "==============================================",
-                        flush=True
-                    )
-
-
-            except Exception as e:
-
-                print(
-                    "❌ ERRO AO FAZER ACK ANTECIPADO DO /POST",
-                    flush=True
-                )
-
-                print(
-                    f"Tipo: {type(e).__name__}",
-                    flush=True
-                )
-
-                print(
-                    f"Erro: {e}",
-                    flush=True
-                )
-
-                traceback.print_exc()
-
-
-        # ----------------------------------------------------
-        # ENTREGAR A INTERAÇÃO PARA A DISCORD.PY
-        # ----------------------------------------------------
-
-        await super().on_interaction(
-            interaction
-        )
-
-
-    # ========================================================
-    # SETUP HOOK
+    # CARREGAR SISTEMAS
     # ========================================================
 
     async def setup_hook(self):
@@ -244,9 +82,8 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-
         # ====================================================
-        # BANCO
+        # BANCO DE DADOS
         # ====================================================
 
         try:
@@ -292,7 +129,6 @@ class Evelly(commands.Bot):
                 flush=True
             )
 
-
         # ====================================================
         # COGS
         # ====================================================
@@ -308,7 +144,6 @@ class Evelly(commands.Bot):
             "cogs.post"
 
         ]
-
 
         for cog in cogs:
 
@@ -357,7 +192,6 @@ class Evelly(commands.Bot):
                     flush=True
                 )
 
-
         print(
             "==============================================",
             flush=True
@@ -373,9 +207,8 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-
     # ========================================================
-    # READY
+    # BOT ONLINE
     # ========================================================
 
     async def on_ready(self):
@@ -410,65 +243,82 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-
         # ====================================================
-        # SINCRONIZAR SOMENTE UMA VEZ
+        # SINCRONIZAR SLASH COMMANDS
         # ====================================================
 
-        if not self.comandos_sincronizados:
+        for guild in self.guilds:
 
-            print(
-                "🔄 SINCRONIZANDO COMANDOS...",
-                flush=True
-            )
+            try:
 
-            for guild in self.guilds:
+                print(
+                    f"🔄 Sincronizando comandos: "
+                    f"{guild.name}",
+                    flush=True
+                )
 
-                try:
+                self.tree.copy_global_to(
+                    guild=guild
+                )
+
+                comandos = await self.tree.sync(
+                    guild=guild
+                )
+
+                print(
+                    f"✅ Comandos sincronizados!",
+                    flush=True
+                )
+
+                print(
+                    f"📋 Total: {len(comandos)}",
+                    flush=True
+                )
+
+                for comando in comandos:
+
+                    try:
+
+                        nome = comando.qualified_name
+
+                    except Exception:
+
+                        nome = comando.name
 
                     print(
-                        f"🔄 Sincronizando: {guild.name}",
+                        f"   └─ /{nome}",
                         flush=True
                     )
 
-                    self.tree.copy_global_to(
-                        guild=guild
-                    )
+            except Exception as e:
 
-                    comandos = await self.tree.sync(
-                        guild=guild
-                    )
+                print(
+                    "==============================================",
+                    flush=True
+                )
 
-                    print(
-                        f"✅ {len(comandos)} comandos sincronizados!",
-                        flush=True
-                    )
+                print(
+                    f"❌ ERRO AO SINCRONIZAR "
+                    f"{guild.name}",
+                    flush=True
+                )
 
-                except Exception as e:
+                print(
+                    f"Tipo: {type(e).__name__}",
+                    flush=True
+                )
 
-                    print(
-                        f"❌ Erro ao sincronizar "
-                        f"{guild.name}: {e}",
-                        flush=True
-                    )
+                print(
+                    f"Erro: {e}",
+                    flush=True
+                )
 
-                    traceback.print_exc()
+                traceback.print_exc()
 
-
-            self.comandos_sincronizados = True
-
-            print(
-                "✅ SINCRONIZAÇÃO FINALIZADA!",
-                flush=True
-            )
-
-        else:
-
-            print(
-                "ℹ️ Comandos já sincronizados.",
-                flush=True
-            )
-
+                print(
+                    "==============================================",
+                    flush=True
+                )
 
         # ====================================================
         # STATUS
@@ -519,9 +369,8 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-
     # ========================================================
-    # APP COMMAND ERROR
+    # ERRO DOS SLASH COMMANDS
     # ========================================================
 
     async def on_app_command_error(
@@ -541,18 +390,76 @@ class Evelly(commands.Bot):
         )
 
         print(
+            f"👤 Usuário: {interaction.user}",
+            flush=True
+        )
+
+        print(
+            f"🆔 User ID: {interaction.user.id}",
+            flush=True
+        )
+
+        print(
+            f"🌐 Servidor: "
+            f"{interaction.guild.name if interaction.guild else 'DM'}",
+            flush=True
+        )
+
+        print(
             f"📌 Comando: "
             f"/{interaction.command.qualified_name if interaction.command else 'desconhecido'}",
             flush=True
         )
 
         print(
-            f"📦 Tipo: {type(error).__name__}",
+            f"📦 Tipo do erro: {type(error).__name__}",
             flush=True
         )
 
         print(
             f"❌ Erro: {error}",
+            flush=True
+        )
+
+        # ====================================================
+        # ERRO ORIGINAL
+        # ====================================================
+
+        if hasattr(error, "original"):
+
+            original = error.original
+
+            print(
+                "----------------------------------------------",
+                flush=True
+            )
+
+            print(
+                "🔎 ERRO ORIGINAL",
+                flush=True
+            )
+
+            print(
+                f"Tipo: {type(original).__name__}",
+                flush=True
+            )
+
+            print(
+                f"Erro: {original}",
+                flush=True
+            )
+
+        # ====================================================
+        # TRACEBACK
+        # ====================================================
+
+        print(
+            "----------------------------------------------",
+            flush=True
+        )
+
+        print(
+            "📜 TRACEBACK COMPLETO",
             flush=True
         )
 
@@ -567,30 +474,16 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-
-        erro_original = getattr(
-            error,
-            "original",
-            error
-        )
-
-        if isinstance(
-            erro_original,
-            discord.NotFound
-        ):
-
-            print(
-                "⚠️ Interação já expirou.",
-                flush=True
-            )
-
-            return
-
+        # ====================================================
+        # RESPONDER NO DISCORD
+        # ====================================================
 
         try:
 
             mensagem = (
-                "❌ **Ocorreu um erro ao executar este comando.**"
+                "❌ **Ocorreu um erro ao executar este comando.**\n\n"
+                "🔎 O erro completo foi enviado para "
+                "o terminal da Evelly."
             )
 
             if interaction.response.is_done():
@@ -610,13 +503,18 @@ class Evelly(commands.Bot):
         except Exception as e:
 
             print(
-                f"⚠️ Falha ao responder erro: {e}",
+                "⚠️ Não foi possível enviar "
+                "a mensagem de erro no Discord.",
                 flush=True
             )
 
+            print(
+                f"Erro: {e}",
+                flush=True
+            )
 
     # ========================================================
-    # ERRO GERAL
+    # ERROS GERAIS
     # ========================================================
 
     async def on_error(
@@ -650,14 +548,19 @@ class Evelly(commands.Bot):
 
 
 # ============================================================
-# BOT
+# CRIAR BOT
 # ============================================================
 
 bot = Evelly()
 
 
 # ============================================================
-# COMMAND TREE ERROR
+# TRATAMENTO DIRETO DA COMMAND TREE
+# ============================================================
+#
+# Este handler é importante porque alguns erros de
+# App Commands podem chegar diretamente pela CommandTree.
+#
 # ============================================================
 
 @bot.tree.error
@@ -705,6 +608,33 @@ async def tree_error_handler(
         flush=True
     )
 
+    if hasattr(error, "original"):
+
+        print(
+            "----------------------------------------------",
+            flush=True
+        )
+
+        print(
+            "🔎 ERRO ORIGINAL:",
+            flush=True
+        )
+
+        print(
+            repr(error.original),
+            flush=True
+        )
+
+        print(
+            "----------------------------------------------",
+            flush=True
+        )
+
+    print(
+        "📜 TRACEBACK COMPLETO:",
+        flush=True
+    )
+
     traceback.print_exception(
         type(error),
         error,
@@ -716,34 +646,16 @@ async def tree_error_handler(
         flush=True
     )
 
-    erro_original = getattr(
-        error,
-        "original",
-        error
-    )
-
-    if isinstance(
-        erro_original,
-        discord.NotFound
-    ):
-
-        print(
-            "⚠️ UNKNOWN INTERACTION.",
-            flush=True
-        )
-
-        print(
-            "⚠️ Não será feita uma segunda tentativa "
-            "de responder.",
-            flush=True
-        )
-
-        return
+    # ========================================================
+    # MENSAGEM NO DISCORD
+    # ========================================================
 
     try:
 
         mensagem = (
-            "❌ **Ocorreu um erro ao executar este comando.**"
+            "❌ **Ocorreu um erro ao executar este comando.**\n\n"
+            "🔎 Verifique o terminal da Evelly "
+            "para ver o erro real."
         )
 
         if interaction.response.is_done():
@@ -763,7 +675,12 @@ async def tree_error_handler(
     except Exception as e:
 
         print(
-            f"⚠️ Falha ao responder erro: {e}",
+            "⚠️ Falha ao responder o erro no Discord:",
+            flush=True
+        )
+
+        print(
+            repr(e),
             flush=True
         )
 
@@ -828,6 +745,12 @@ async def reinicio_automatico():
         )
 
         print(
+            "📡 GitHub Actions deverá iniciar "
+            "o próximo ciclo.",
+            flush=True
+        )
+
+        print(
             "==============================================",
             flush=True
         )
@@ -863,6 +786,10 @@ async def main():
         flush=True
     )
 
+    tarefa_reinicio = asyncio.create_task(
+        reinicio_automatico()
+    )
+
     try:
 
         await bot.start(
@@ -872,12 +799,22 @@ async def main():
     except discord.LoginFailure as e:
 
         print(
+            "==============================================",
+            flush=True
+        )
+
+        print(
             "❌ TOKEN DO DISCORD INVÁLIDO",
             flush=True
         )
 
         print(
             str(e),
+            flush=True
+        )
+
+        print(
+            "==============================================",
             flush=True
         )
 
@@ -913,6 +850,20 @@ async def main():
         )
 
         raise
+
+    finally:
+
+        if not tarefa_reinicio.done():
+
+            tarefa_reinicio.cancel()
+
+            try:
+
+                await tarefa_reinicio
+
+            except asyncio.CancelledError:
+
+                pass
 
 
 # ============================================================
