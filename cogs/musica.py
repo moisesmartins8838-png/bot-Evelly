@@ -30,7 +30,9 @@ YTDL_OPTIONS = {
 
     # Runtime JavaScript usado pelo yt-dlp para os desafios atuais do YouTube.
     "js_runtimes": {
-        "node": {}
+        "node": {
+            "path": "node"
+        }
     },
 
     # Usa o servidor local bgutil para gerar PO Tokens automaticamente.

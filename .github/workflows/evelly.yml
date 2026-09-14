@@ -83,9 +83,17 @@ jobs:
           python --version
           python -m pip show yt-dlp
           python -m pip show bgutil-ytdlp-pot-provider
+
+          echo ""
+          echo "🟣 Bun:"
           bun --version
+          which bun
+
+          echo ""
+          echo "🟢 Node.js:"
           node --version
-          npm --version
+          which node
+          node -p "process.execPath"
 
           echo ""
           echo "=============================================="
@@ -191,10 +199,13 @@ jobs:
           echo ""
           echo "🟣 Bun:"
           bun --version
+          which bun
 
           echo ""
           echo "🟢 Node.js:"
           node --version
+          which node
+          node -p "process.execPath"
 
           echo ""
           echo "=============================================="
@@ -202,11 +213,12 @@ jobs:
           echo "=============================================="
 
           python -m yt_dlp \
+            --js-runtimes node \
             --extractor-args "youtubepot-bgutilhttp:base_url=http://127.0.0.1:4416" \
             --verbose \
             --skip-download \
             "https://www.youtube.com/watch?v=eyBhxuONsOA" \
-            2>&1 | grep -Ei "pot|bgutil|token|youtube" | head -n 100 || true
+            2>&1 | grep -Ei "pot|bgutil|token|javascript|runtime|youtube" | head -n 120 || true
 
           echo ""
           echo "=============================================="
@@ -224,9 +236,6 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY }}
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
 
-          # Runtime JavaScript do yt-dlp
-          YTDLP_JS_RUNTIMES: bun
-
         run: |
           echo "=============================================="
           echo "🚀 INICIANDO EVELLY"
@@ -235,8 +244,13 @@ jobs:
           echo "⏱️ Tempo máximo deste ciclo: 5h50"
           echo "🔄 Após o ciclo, uma nova execução será criada."
 
-          echo "=============================================="
           echo ""
+          echo "📺 Runtime JavaScript: Node.js"
+          node --version
+          node -p "process.execPath"
+
+          echo ""
+          echo "=============================================="
 
           python bot.py
 
