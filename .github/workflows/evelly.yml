@@ -36,6 +36,11 @@ jobs:
       - name: 🟣 Instalar Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: 🟢 Instalar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
       - name: 📦 Instalar dependências
         run: |
           python -m pip install --upgrade pip
@@ -49,6 +54,10 @@ jobs:
           echo ""
           echo "📺 Atualizando yt-dlp..."
           python -m pip install -U "yt-dlp[default]"
+
+          echo ""
+          echo "🔐 Instalando PO Token Provider..."
+          python -m pip install -U bgutil-ytdlp-pot-provider
 
           echo ""
           echo "=============================================="
