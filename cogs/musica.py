@@ -27,6 +27,18 @@ YTDL_OPTIONS = {
     "no_warnings": True,
     "default_search": "ytsearch",
     "source_address": "0.0.0.0",
+
+    # Runtime JavaScript usado pelo yt-dlp para os desafios atuais do YouTube.
+    "js_runtimes": {
+        "node": {}
+    },
+
+    # Usa o servidor local bgutil para gerar PO Tokens automaticamente.
+    "extractor_args": {
+        "youtubepot-bgutilhttp": {
+            "base_url": "http://127.0.0.1:4416"
+        }
+    },
 }
 
 # Opções do FFmpeg.
