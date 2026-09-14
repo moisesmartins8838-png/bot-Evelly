@@ -166,11 +166,7 @@ def pegar_content_type(arquivo):
 # FUNÇÃO — URL ASSINADA
 # ============================================================
 
-def criar_link_download(caminho, download=False):
-
-    opcoes = {
-        "download": download
-    }
+def criar_link_download(caminho):
 
     resultado = (
         supabase
@@ -178,8 +174,7 @@ def criar_link_download(caminho, download=False):
         .from_(BUCKET)
         .create_signed_url(
             caminho,
-            TEMPO_LINK,
-            opcoes
+            TEMPO_LINK
         )
     )
 
@@ -245,7 +240,7 @@ class DownloadView(discord.ui.View):
 
             nome = arquivo["nome"]
 
-            url = arquivo["download_url"]
+            url = arquivo["url"]
 
             # ------------------------------------------------
             # Limitar nome
@@ -753,28 +748,20 @@ class Post(commands.Cog):
                 )
 
                 # --------------------------------------------
-                # CRIAR URLS ASSINADAS
+                # CRIAR URL ASSINADA
                 # --------------------------------------------
 
                 print(
-                    "🔐 Criando links privados...",
+                    "🔐 Criando link privado...",
                     flush=True
                 )
 
-                # URL normal: usada para exibir imagens no Embed.
                 url = criar_link_download(
-                    caminho,
-                    download=False
-                )
-
-                # URL com download=True: o navegador inicia o download.
-                download_url = criar_link_download(
-                    caminho,
-                    download=True
+                    caminho
                 )
 
                 print(
-                    "✅ Links privados criados!",
+                    "✅ Link privado criado!",
                     flush=True
                 )
 
@@ -783,18 +770,28 @@ class Post(commands.Cog):
                 # --------------------------------------------
 
                 arquivos_publicados.append(
+
                     {
-                        "nome": arquivo.filename,
-                        "url": url,
-                        "download_url": download_url,
-                        "tamanho": arquivo.size,
-                        "caminho": caminho,
-                        "content_type": content_type
+
+                        "nome":
+                            arquivo.filename,
+
+                        "url":
+                            url,
+
+                        "tamanho":
+                            arquivo.size,
+
+                        "caminho":
+                            caminho,
+
+                        "content_type":
+                            content_type
                     }
                 )
 
-            # --------------------------------------------
-            # PRIMEIRA IMAGEM
+                # --------------------------------------------
+                # PRIMEIRA IMAGEM
                 # --------------------------------------------
 
                 extensao = pegar_extensao(

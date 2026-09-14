@@ -102,7 +102,7 @@ class YouTube(commands.Cog):
     # FINALIZAÇÃO
     # =====================================================
 
-    def cog_unload():
+    def cog_unload(self):
 
         self.monitorar.cancel()
 
@@ -481,14 +481,18 @@ class YouTube(commands.Cog):
         # SALVAR
         # -------------------------------------------------
 
-        resultado = await asyncio.to_thread(
-                adicionar_youtube,
-                guild_id=guild_id,
-                youtube_id=youtube_id,
-                nome=nome,
-                uploads_playlist=uploads_playlist,
-                ultimo_video=ultimo_video
-            )
+        resultado = adicionar_youtube(
+
+            guild_id=guild_id,
+
+            youtube_id=youtube_id,
+
+            nome=nome,
+
+            uploads_playlist=uploads_playlist,
+
+            ultimo_video=ultimo_video
+        )
 
 
         if resultado is None:
@@ -589,11 +593,9 @@ class YouTube(commands.Cog):
         canal_id: str
     ):
 
-        await interaction.response.defer()
-
         if interaction.guild is None:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Este comando só pode ser usado em um servidor.",
                 ephemeral=True
             )
@@ -601,22 +603,23 @@ class YouTube(commands.Cog):
             return
 
 
-        removido = await asyncio.to_thread(
-                remover_youtube,
-                interaction.guild.id,
-                canal_id
-            )
+        removido = remover_youtube(
+
+            interaction.guild.id,
+
+            canal_id
+        )
 
 
         if removido:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "✅ Canal removido do monitoramento."
             )
 
         else:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Não encontrei esse canal na lista."
             )
 
@@ -635,8 +638,6 @@ class YouTube(commands.Cog):
         interaction: discord.Interaction
     ):
 
-        await interaction.response.defer()
-
         if interaction.guild is None:
 
             await interaction.followup.send(
@@ -647,10 +648,12 @@ class YouTube(commands.Cog):
             return
 
 
+        await interaction.response.defer()
+
         canais = await asyncio.to_thread(
-                listar_youtube,
-                interaction.guild.id
-            )
+            listar_youtube,
+            interaction.guild.id
+        )
 
 
         if not canais:
@@ -742,11 +745,9 @@ class YouTube(commands.Cog):
         interaction: discord.Interaction
     ):
 
-        await interaction.response.defer()
-
         if interaction.guild is None:
 
-            await interaction.followup.send(
+            await interaction.response.send_message(
                 "❌ Este comando só pode ser usado em um servidor.",
                 ephemeral=True
             )
@@ -754,22 +755,27 @@ class YouTube(commands.Cog):
             return
 
 
+        await interaction.response.defer()
+
+        print(
+            "[YOUTUBE STATUS] defer realizado",
+            flush=True
+        )
+
         await asyncio.to_thread(
             criar_servidor,
             interaction.guild.id
         )
-
 
         servidor = await asyncio.to_thread(
             pegar_servidor,
             interaction.guild.id
         )
 
-
         canais = await asyncio.to_thread(
-                listar_youtube,
-                interaction.guild.id
-            )
+            listar_youtube,
+            interaction.guild.id
+        )
 
 
         if not servidor:
@@ -855,9 +861,7 @@ class YouTube(commands.Cog):
         await self.bot.wait_until_ready()
 
 
-        registros = await asyncio.to_thread(
-            pegar_todos_youtube
-        )
+        registros = pegar_todos_youtube()
 
 
         if not registros:
@@ -908,9 +912,10 @@ class YouTube(commands.Cog):
 
                 if not ultimo_video:
 
-                    await asyncio.to_thread(
-                        atualizar_ultimo_video,
+                    atualizar_ultimo_video(
+
                         registro_id,
+
                         novo_video
                     )
 
@@ -937,9 +942,10 @@ class YouTube(commands.Cog):
                 )
 
 
-                await asyncio.to_thread(
-                    atualizar_ultimo_video,
+                atualizar_ultimo_video(
+
                     registro_id,
+
                     novo_video
                 )
 
@@ -1022,8 +1028,7 @@ class YouTube(commands.Cog):
         # CONFIGURAÇÕES
         # =================================================
 
-        servidor = await asyncio.to_thread(
-            pegar_servidor,
+        servidor = pegar_servidor(
             guild_id
         )
 
