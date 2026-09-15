@@ -16,8 +16,14 @@ from database.database import criar_banco
 
 load_dotenv()
 
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+DISCORD_TOKEN = os.getenv(
+    "DISCORD_TOKEN"
+)
+
+YOUTUBE_API_KEY = os.getenv(
+    "YOUTUBE_API_KEY"
+)
 
 
 # ============================================================
@@ -25,11 +31,14 @@ YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 # ============================================================
 
 if not DISCORD_TOKEN:
+
     raise RuntimeError(
         "❌ DISCORD_TOKEN não foi encontrado no .env"
     )
 
+
 if not YOUTUBE_API_KEY:
+
     raise RuntimeError(
         "❌ YOUTUBE_API_KEY não foi encontrado no .env"
     )
@@ -93,16 +102,14 @@ class Evelly(commands.Bot):
                 flush=True
             )
 
-            # criar_banco() não é async.
-            # Por isso NÃO usamos await aqui.
-            await asyncio.to_thread(criar_banco)
+            criar_banco()
 
             print(
                 "☁️ Banco Supabase conectado!",
                 flush=True
             )
 
-        except Exception as e:
+        except Exception as erro:
 
             print(
                 "==============================================",
@@ -115,12 +122,12 @@ class Evelly(commands.Bot):
             )
 
             print(
-                f"Tipo: {type(e).__name__}",
+                f"Tipo: {type(erro).__name__}",
                 flush=True
             )
 
             print(
-                f"Erro: {e}",
+                f"Erro: {erro}",
                 flush=True
             )
 
@@ -136,10 +143,17 @@ class Evelly(commands.Bot):
         # ====================================================
 
         cogs = [
+
             "cogs.geral",
+
             "cogs.configuracao",
+
             "cogs.youtube",
-            "cogs.post"
+
+            "cogs.post",
+
+            "cogs.call"
+
         ]
 
         for cog in cogs:
@@ -160,7 +174,7 @@ class Evelly(commands.Bot):
                     flush=True
                 )
 
-            except Exception as e:
+            except Exception as erro:
 
                 print(
                     "==============================================",
@@ -173,12 +187,12 @@ class Evelly(commands.Bot):
                 )
 
                 print(
-                    f"Tipo: {type(e).__name__}",
+                    f"Tipo: {type(erro).__name__}",
                     flush=True
                 )
 
                 print(
-                    f"Erro: {e}",
+                    f"Erro: {erro}",
                     flush=True
                 )
 
@@ -203,6 +217,40 @@ class Evelly(commands.Bot):
             "==============================================",
             flush=True
         )
+
+    # ========================================================
+    # PRESENÇA / STATUS DO DISCORD
+    # ========================================================
+
+    async def atualizar_presenca(self):
+
+        try:
+
+            atividade = discord.Game(
+                name="Com ela <3"
+            )
+
+            await self.change_presence(
+                status=discord.Status.online,
+                activity=atividade
+            )
+
+            print(
+                "💜 Rich Presence da Evelly atualizado!",
+                flush=True
+            )
+
+            print(
+                "   └─ Jogando: Com ela <3",
+                flush=True
+            )
+
+        except Exception as erro:
+
+            print(
+                f"⚠️ Erro ao atualizar presença: {erro}",
+                flush=True
+            )
 
     # ========================================================
     # BOT ONLINE
@@ -241,6 +289,12 @@ class Evelly(commands.Bot):
         )
 
         # ====================================================
+        # PRESENÇA
+        # ====================================================
+
+        await self.atualizar_presenca()
+
+        # ====================================================
         # SINCRONIZAR SLASH COMMANDS
         # ====================================================
 
@@ -249,8 +303,7 @@ class Evelly(commands.Bot):
             try:
 
                 print(
-                    f"🔄 Sincronizando comandos: "
-                    f"{guild.name}",
+                    f"🔄 Sincronizando comandos: {guild.name}",
                     flush=True
                 )
 
@@ -287,7 +340,7 @@ class Evelly(commands.Bot):
                         flush=True
                     )
 
-            except Exception as e:
+            except Exception as erro:
 
                 print(
                     "==============================================",
@@ -295,18 +348,17 @@ class Evelly(commands.Bot):
                 )
 
                 print(
-                    f"❌ ERRO AO SINCRONIZAR "
-                    f"{guild.name}",
+                    f"❌ ERRO AO SINCRONIZAR {guild.name}",
                     flush=True
                 )
 
                 print(
-                    f"Tipo: {type(e).__name__}",
+                    f"Tipo: {type(erro).__name__}",
                     flush=True
                 )
 
                 print(
-                    f"Erro: {e}",
+                    f"Erro: {erro}",
                     flush=True
                 )
 
@@ -337,12 +389,22 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "📁 Máximo de arquivos por post: 10",
+            "📺 Sistema YouTube: ATIVO",
             flush=True
         )
 
         print(
-            "📺 Sistema YouTube: ATIVO",
+            "📞 Sistema de call: ATIVO",
+            flush=True
+        )
+
+        print(
+            "🔇 Sistema de música: REMOVIDO",
+            flush=True
+        )
+
+        print(
+            "💜 Presença Discord: ATIVA",
             flush=True
         )
 
@@ -402,9 +464,20 @@ class Evelly(commands.Bot):
             flush=True
         )
 
+        try:
+
+            nome_comando = (
+                interaction.command.qualified_name
+                if interaction.command
+                else "desconhecido"
+            )
+
+        except Exception:
+
+            nome_comando = "desconhecido"
+
         print(
-            f"📌 Comando: "
-            f"/{interaction.command.qualified_name if interaction.command else 'desconhecido'}",
+            f"📌 Comando: /{nome_comando}",
             flush=True
         )
 
@@ -497,7 +570,7 @@ class Evelly(commands.Bot):
                     ephemeral=True
                 )
 
-        except Exception as e:
+        except Exception as erro:
 
             print(
                 "⚠️ Não foi possível enviar "
@@ -506,7 +579,7 @@ class Evelly(commands.Bot):
             )
 
             print(
-                f"Erro: {e}",
+                f"Erro: {erro}",
                 flush=True
             )
 
@@ -552,7 +625,7 @@ bot = Evelly()
 
 
 # ============================================================
-# TRATAMENTO DIRETO DA COMMAND TREE
+# COMMAND TREE ERROR
 # ============================================================
 
 @bot.tree.error
@@ -600,33 +673,6 @@ async def tree_error_handler(
         flush=True
     )
 
-    if hasattr(error, "original"):
-
-        print(
-            "----------------------------------------------",
-            flush=True
-        )
-
-        print(
-            "🔎 ERRO ORIGINAL:",
-            flush=True
-        )
-
-        print(
-            repr(error.original),
-            flush=True
-        )
-
-        print(
-            "----------------------------------------------",
-            flush=True
-        )
-
-    print(
-        "📜 TRACEBACK COMPLETO:",
-        flush=True
-    )
-
     traceback.print_exception(
         type(error),
         error,
@@ -637,10 +683,6 @@ async def tree_error_handler(
         "==============================================",
         flush=True
     )
-
-    # ========================================================
-    # MENSAGEM NO DISCORD
-    # ========================================================
 
     try:
 
@@ -664,15 +706,10 @@ async def tree_error_handler(
                 ephemeral=True
             )
 
-    except Exception as e:
+    except Exception as erro:
 
         print(
-            "⚠️ Falha ao responder o erro no Discord:",
-            flush=True
-        )
-
-        print(
-            repr(e),
+            f"⚠️ Falha ao responder o erro: {erro}",
             flush=True
         )
 
@@ -747,6 +784,27 @@ async def reinicio_automatico():
             flush=True
         )
 
+        # Desconectar de todas as calls antes de fechar.
+        for guild in bot.guilds:
+
+            voice = guild.voice_client
+
+            if voice:
+
+                try:
+
+                    await voice.disconnect(
+                        force=True
+                    )
+
+                except Exception as erro:
+
+                    print(
+                        f"[CALL] Erro ao desconectar "
+                        f"{guild.name}: {erro}",
+                        flush=True
+                    )
+
         await bot.close()
 
     except asyncio.CancelledError:
@@ -788,7 +846,7 @@ async def main():
             DISCORD_TOKEN
         )
 
-    except discord.LoginFailure as e:
+    except discord.LoginFailure as erro:
 
         print(
             "==============================================",
@@ -801,7 +859,7 @@ async def main():
         )
 
         print(
-            str(e),
+            str(erro),
             flush=True
         )
 
@@ -812,7 +870,7 @@ async def main():
 
         raise
 
-    except Exception as e:
+    except Exception as erro:
 
         print(
             "==============================================",
@@ -825,12 +883,12 @@ async def main():
         )
 
         print(
-            f"Tipo: {type(e).__name__}",
+            f"Tipo: {type(erro).__name__}",
             flush=True
         )
 
         print(
-            f"Erro: {e}",
+            f"Erro: {erro}",
             flush=True
         )
 
@@ -887,7 +945,7 @@ if __name__ == "__main__":
             flush=True
         )
 
-    except Exception as e:
+    except Exception as erro:
 
         print(
             "==============================================",
@@ -900,12 +958,12 @@ if __name__ == "__main__":
         )
 
         print(
-            f"Tipo: {type(e).__name__}",
+            f"Tipo: {type(erro).__name__}",
             flush=True
         )
 
         print(
-            f"Erro: {e}",
+            f"Erro: {erro}",
             flush=True
         )
 
