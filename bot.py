@@ -153,7 +153,8 @@ class Evelly(commands.Bot):
             "cogs.post",
 
             "cogs.call",
-            "cogs.welcome"
+
+            "cogs.linknot"
 
         ]
 
@@ -400,7 +401,6 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "💜 Sistema de boas-vindas: ATIVO",
             "🔇 Sistema de música: REMOVIDO",
             flush=True
         )
@@ -429,6 +429,161 @@ class Evelly(commands.Bot):
             "==============================================",
             flush=True
         )
+
+    # ========================================================
+    # ERRO DOS SLASH COMMANDS
+    # ========================================================
+
+    async def on_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: discord.app_commands.AppCommandError
+    ):
+
+        print(
+            "==============================================",
+            flush=True
+        )
+
+        print(
+            "❌ ERRO DE SLASH COMMAND",
+            flush=True
+        )
+
+        print(
+            f"👤 Usuário: {interaction.user}",
+            flush=True
+        )
+
+        print(
+            f"🆔 User ID: {interaction.user.id}",
+            flush=True
+        )
+
+        print(
+            f"🌐 Servidor: "
+            f"{interaction.guild.name if interaction.guild else 'DM'}",
+            flush=True
+        )
+
+        try:
+
+            nome_comando = (
+                interaction.command.qualified_name
+                if interaction.command
+                else "desconhecido"
+            )
+
+        except Exception:
+
+            nome_comando = "desconhecido"
+
+        print(
+            f"📌 Comando: /{nome_comando}",
+            flush=True
+        )
+
+        print(
+            f"📦 Tipo do erro: {type(error).__name__}",
+            flush=True
+        )
+
+        print(
+            f"❌ Erro: {error}",
+            flush=True
+        )
+
+        # ====================================================
+        # ERRO ORIGINAL
+        # ====================================================
+
+        if hasattr(error, "original"):
+
+            original = error.original
+
+            print(
+                "----------------------------------------------",
+                flush=True
+            )
+
+            print(
+                "🔎 ERRO ORIGINAL",
+                flush=True
+            )
+
+            print(
+                f"Tipo: {type(original).__name__}",
+                flush=True
+            )
+
+            print(
+                f"Erro: {original}",
+                flush=True
+            )
+
+        # ====================================================
+        # TRACEBACK
+        # ====================================================
+
+        print(
+            "----------------------------------------------",
+            flush=True
+        )
+
+        print(
+            "📜 TRACEBACK COMPLETO",
+            flush=True
+        )
+
+        traceback.print_exception(
+            type(error),
+            error,
+            error.__traceback__
+        )
+
+        print(
+            "==============================================",
+            flush=True
+        )
+
+        # ====================================================
+        # RESPONDER NO DISCORD
+        # ====================================================
+
+        try:
+
+            mensagem = (
+                "❌ **Ocorreu um erro ao executar este comando.**\n\n"
+                "🔎 O erro completo foi enviado para "
+                "o terminal da Evelly."
+            )
+
+            if interaction.response.is_done():
+
+                await interaction.followup.send(
+                    mensagem,
+                    ephemeral=True
+                )
+
+            else:
+
+                await interaction.response.send_message(
+                    mensagem,
+                    ephemeral=True
+                )
+
+        except Exception as erro:
+
+            print(
+                "⚠️ Não foi possível enviar "
+                "a mensagem de erro no Discord.",
+                flush=True
+            )
+
+            print(
+                f"Erro: {erro}",
+                flush=True
+            )
 
     # ========================================================
     # ERROS GERAIS
@@ -469,6 +624,96 @@ class Evelly(commands.Bot):
 # ============================================================
 
 bot = Evelly()
+
+
+# ============================================================
+# COMMAND TREE ERROR
+# ============================================================
+
+@bot.tree.error
+async def tree_error_handler(
+    interaction: discord.Interaction,
+    error: discord.app_commands.AppCommandError
+):
+
+    print(
+        "==============================================",
+        flush=True
+    )
+
+    print(
+        "🚨 ERRO CAPTURADO PELA COMMAND TREE",
+        flush=True
+    )
+
+    if interaction.command:
+
+        try:
+
+            nome_comando = (
+                interaction.command.qualified_name
+            )
+
+        except Exception:
+
+            nome_comando = (
+                interaction.command.name
+            )
+
+        print(
+            f"📌 Comando: /{nome_comando}",
+            flush=True
+        )
+
+    print(
+        f"📦 Tipo: {type(error).__name__}",
+        flush=True
+    )
+
+    print(
+        f"❌ Erro: {error}",
+        flush=True
+    )
+
+    traceback.print_exception(
+        type(error),
+        error,
+        error.__traceback__
+    )
+
+    print(
+        "==============================================",
+        flush=True
+    )
+
+    try:
+
+        mensagem = (
+            "❌ **Ocorreu um erro ao executar este comando.**\n\n"
+            "🔎 Verifique o terminal da Evelly "
+            "para ver o erro real."
+        )
+
+        if interaction.response.is_done():
+
+            await interaction.followup.send(
+                mensagem,
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.response.send_message(
+                mensagem,
+                ephemeral=True
+            )
+
+    except Exception as erro:
+
+        print(
+            f"⚠️ Falha ao responder o erro: {erro}",
+            flush=True
+        )
 
 
 # ============================================================
