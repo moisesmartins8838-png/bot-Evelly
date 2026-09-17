@@ -154,6 +154,8 @@ class Evelly(commands.Bot):
 
             "cogs.call",
 
+             "cogs.enviarpv",
+
             "cogs.linknot"
 
         ]
