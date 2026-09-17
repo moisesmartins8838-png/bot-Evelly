@@ -16,14 +16,8 @@ from database.database import criar_banco
 
 load_dotenv()
 
-
-DISCORD_TOKEN = os.getenv(
-    "DISCORD_TOKEN"
-)
-
-YOUTUBE_API_KEY = os.getenv(
-    "YOUTUBE_API_KEY"
-)
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 
 
 # ============================================================
@@ -31,14 +25,11 @@ YOUTUBE_API_KEY = os.getenv(
 # ============================================================
 
 if not DISCORD_TOKEN:
-
     raise RuntimeError(
         "❌ DISCORD_TOKEN não foi encontrado no .env"
     )
 
-
 if not YOUTUBE_API_KEY:
-
     raise RuntimeError(
         "❌ YOUTUBE_API_KEY não foi encontrado no .env"
     )
@@ -70,6 +61,7 @@ class Evelly(commands.Bot):
 
         self.youtube_api_key = YOUTUBE_API_KEY
 
+
     # ========================================================
     # CARREGAR SISTEMAS
     # ========================================================
@@ -90,6 +82,7 @@ class Evelly(commands.Bot):
             "==============================================",
             flush=True
         )
+
 
         # ====================================================
         # BANCO DE DADOS
@@ -138,29 +131,26 @@ class Evelly(commands.Bot):
                 flush=True
             )
 
+
         # ====================================================
         # COGS
         # ====================================================
 
         cogs = [
-
             "cogs.geral",
-
             "cogs.configuracao",
-
             "cogs.youtube",
-
             "cogs.post",
-
             "cogs.call",
-
-             "cogs.enviarpv",
-
-            "cogs.linknot"
-
-             "cogs.welcome"
-
+            "cogs.enviarpv",
+            "cogs.linknot",
+            "cogs.welcome",
         ]
+
+
+        # ====================================================
+        # CARREGAR COGS
+        # ====================================================
 
         for cog in cogs:
 
@@ -171,9 +161,7 @@ class Evelly(commands.Bot):
 
             try:
 
-                await self.load_extension(
-                    cog
-                )
+                await self.load_extension(cog)
 
                 print(
                     f"✅ Sistema carregado: {cog}",
@@ -209,6 +197,7 @@ class Evelly(commands.Bot):
                     flush=True
                 )
 
+
         print(
             "==============================================",
             flush=True
@@ -223,6 +212,7 @@ class Evelly(commands.Bot):
             "==============================================",
             flush=True
         )
+
 
     # ========================================================
     # PRESENÇA / STATUS DO DISCORD
@@ -257,6 +247,7 @@ class Evelly(commands.Bot):
                 f"⚠️ Erro ao atualizar presença: {erro}",
                 flush=True
             )
+
 
     # ========================================================
     # BOT ONLINE
@@ -294,11 +285,13 @@ class Evelly(commands.Bot):
             flush=True
         )
 
+
         # ====================================================
         # PRESENÇA
         # ====================================================
 
         await self.atualizar_presenca()
+
 
         # ====================================================
         # SINCRONIZAR SLASH COMMANDS
@@ -334,11 +327,8 @@ class Evelly(commands.Bot):
                 for comando in comandos:
 
                     try:
-
                         nome = comando.qualified_name
-
                     except Exception:
-
                         nome = comando.name
 
                     print(
@@ -375,6 +365,7 @@ class Evelly(commands.Bot):
                     flush=True
                 )
 
+
         # ====================================================
         # STATUS
         # ====================================================
@@ -401,6 +392,21 @@ class Evelly(commands.Bot):
 
         print(
             "📞 Sistema de call: ATIVO",
+            flush=True
+        )
+
+        print(
+            "📨 Sistema EnviarPV: ATIVO",
+            flush=True
+        )
+
+        print(
+            "🔗 Sistema LinkNot: ATIVO",
+            flush=True
+        )
+
+        print(
+            "💜 Sistema de boas-vindas: ATIVO",
             flush=True
         )
 
@@ -434,160 +440,6 @@ class Evelly(commands.Bot):
             flush=True
         )
 
-    # ========================================================
-    # ERRO DOS SLASH COMMANDS
-    # ========================================================
-
-    async def on_app_command_error(
-        self,
-        interaction: discord.Interaction,
-        error: discord.app_commands.AppCommandError
-    ):
-
-        print(
-            "==============================================",
-            flush=True
-        )
-
-        print(
-            "❌ ERRO DE SLASH COMMAND",
-            flush=True
-        )
-
-        print(
-            f"👤 Usuário: {interaction.user}",
-            flush=True
-        )
-
-        print(
-            f"🆔 User ID: {interaction.user.id}",
-            flush=True
-        )
-
-        print(
-            f"🌐 Servidor: "
-            f"{interaction.guild.name if interaction.guild else 'DM'}",
-            flush=True
-        )
-
-        try:
-
-            nome_comando = (
-                interaction.command.qualified_name
-                if interaction.command
-                else "desconhecido"
-            )
-
-        except Exception:
-
-            nome_comando = "desconhecido"
-
-        print(
-            f"📌 Comando: /{nome_comando}",
-            flush=True
-        )
-
-        print(
-            f"📦 Tipo do erro: {type(error).__name__}",
-            flush=True
-        )
-
-        print(
-            f"❌ Erro: {error}",
-            flush=True
-        )
-
-        # ====================================================
-        # ERRO ORIGINAL
-        # ====================================================
-
-        if hasattr(error, "original"):
-
-            original = error.original
-
-            print(
-                "----------------------------------------------",
-                flush=True
-            )
-
-            print(
-                "🔎 ERRO ORIGINAL",
-                flush=True
-            )
-
-            print(
-                f"Tipo: {type(original).__name__}",
-                flush=True
-            )
-
-            print(
-                f"Erro: {original}",
-                flush=True
-            )
-
-        # ====================================================
-        # TRACEBACK
-        # ====================================================
-
-        print(
-            "----------------------------------------------",
-            flush=True
-        )
-
-        print(
-            "📜 TRACEBACK COMPLETO",
-            flush=True
-        )
-
-        traceback.print_exception(
-            type(error),
-            error,
-            error.__traceback__
-        )
-
-        print(
-            "==============================================",
-            flush=True
-        )
-
-        # ====================================================
-        # RESPONDER NO DISCORD
-        # ====================================================
-
-        try:
-
-            mensagem = (
-                "❌ **Ocorreu um erro ao executar este comando.**\n\n"
-                "🔎 O erro completo foi enviado para "
-                "o terminal da Evelly."
-            )
-
-            if interaction.response.is_done():
-
-                await interaction.followup.send(
-                    mensagem,
-                    ephemeral=True
-                )
-
-            else:
-
-                await interaction.response.send_message(
-                    mensagem,
-                    ephemeral=True
-                )
-
-        except Exception as erro:
-
-            print(
-                "⚠️ Não foi possível enviar "
-                "a mensagem de erro no Discord.",
-                flush=True
-            )
-
-            print(
-                f"Erro: {erro}",
-                flush=True
-            )
 
     # ========================================================
     # ERROS GERAIS
@@ -628,96 +480,6 @@ class Evelly(commands.Bot):
 # ============================================================
 
 bot = Evelly()
-
-
-# ============================================================
-# COMMAND TREE ERROR
-# ============================================================
-
-@bot.tree.error
-async def tree_error_handler(
-    interaction: discord.Interaction,
-    error: discord.app_commands.AppCommandError
-):
-
-    print(
-        "==============================================",
-        flush=True
-    )
-
-    print(
-        "🚨 ERRO CAPTURADO PELA COMMAND TREE",
-        flush=True
-    )
-
-    if interaction.command:
-
-        try:
-
-            nome_comando = (
-                interaction.command.qualified_name
-            )
-
-        except Exception:
-
-            nome_comando = (
-                interaction.command.name
-            )
-
-        print(
-            f"📌 Comando: /{nome_comando}",
-            flush=True
-        )
-
-    print(
-        f"📦 Tipo: {type(error).__name__}",
-        flush=True
-    )
-
-    print(
-        f"❌ Erro: {error}",
-        flush=True
-    )
-
-    traceback.print_exception(
-        type(error),
-        error,
-        error.__traceback__
-    )
-
-    print(
-        "==============================================",
-        flush=True
-    )
-
-    try:
-
-        mensagem = (
-            "❌ **Ocorreu um erro ao executar este comando.**\n\n"
-            "🔎 Verifique o terminal da Evelly "
-            "para ver o erro real."
-        )
-
-        if interaction.response.is_done():
-
-            await interaction.followup.send(
-                mensagem,
-                ephemeral=True
-            )
-
-        else:
-
-            await interaction.response.send_message(
-                mensagem,
-                ephemeral=True
-            )
-
-    except Exception as erro:
-
-        print(
-            f"⚠️ Falha ao responder o erro: {erro}",
-            flush=True
-        )
 
 
 # ============================================================
@@ -790,7 +552,11 @@ async def reinicio_automatico():
             flush=True
         )
 
-        # Desconectar de todas as calls antes de fechar.
+
+        # ====================================================
+        # DESCONECTAR DE CALLS
+        # ====================================================
+
         for guild in bot.guilds:
 
             voice = guild.voice_client
@@ -811,7 +577,9 @@ async def reinicio_automatico():
                         flush=True
                     )
 
+
         await bot.close()
+
 
     except asyncio.CancelledError:
 
@@ -842,15 +610,18 @@ async def main():
         flush=True
     )
 
+
     tarefa_reinicio = asyncio.create_task(
         reinicio_automatico()
     )
+
 
     try:
 
         await bot.start(
             DISCORD_TOKEN
         )
+
 
     except discord.LoginFailure as erro:
 
@@ -875,6 +646,7 @@ async def main():
         )
 
         raise
+
 
     except Exception as erro:
 
@@ -906,6 +678,7 @@ async def main():
         )
 
         raise
+
 
     finally:
 
