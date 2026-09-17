@@ -158,6 +158,8 @@ class Evelly(commands.Bot):
 
             "cogs.linknot"
 
+             "cogs.welcome"
+
         ]
 
         for cog in cogs:
