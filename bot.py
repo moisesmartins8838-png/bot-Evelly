@@ -145,6 +145,7 @@ class Evelly(commands.Bot):
             "cogs.enviarpv",
             "cogs.linknot",
             "cogs.welcome",
+            "cogs.callauto",
         ]
 
 

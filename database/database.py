@@ -8,7 +8,10 @@ load_dotenv()
 
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY")
+SUPABASE_KEY = (
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+)
 
 
 if not SUPABASE_URL:
@@ -480,3 +483,110 @@ def atualizar_ultimo_video(
         print(
             f"❌ Erro atualizando último vídeo: {erro}"
         )
+
+        # =========================================================
+# CALL AUTO
+# =========================================================
+
+def configurar_call_auto(guild_id, channel_id):
+    try:
+        supabase.table("voice_auto_join").upsert({
+            "guild_id": guild_id,
+            "channel_id": channel_id,
+            "enabled": True
+        }).execute()
+
+        print(
+            f"☁️ CallAuto ativado no servidor {guild_id} "
+            f"para o canal {channel_id}."
+        )
+
+        return True
+
+    except Exception as erro:
+        print(
+            f"❌ Erro configurando CallAuto: {erro}"
+        )
+
+        return False
+
+
+def desativar_call_auto(guild_id):
+    try:
+        supabase.table("voice_auto_join").update({
+            "enabled": False
+        }).eq(
+            "guild_id",
+            guild_id
+        ).execute()
+
+        print(
+            f"☁️ CallAuto desativado no servidor {guild_id}."
+        )
+
+        return True
+
+    except Exception as erro:
+        print(
+            f"❌ Erro desativando CallAuto: {erro}"
+        )
+
+        return False
+
+
+def pegar_call_auto(guild_id):
+    try:
+        resposta = (
+            supabase
+            .table("voice_auto_join")
+            .select("guild_id,channel_id,enabled")
+            .eq("guild_id", guild_id)
+            .execute()
+        )
+
+        if not resposta.data:
+            return None
+
+        dados = resposta.data[0]
+
+        return (
+            dados.get("guild_id"),
+            dados.get("channel_id"),
+            dados.get("enabled")
+        )
+
+    except Exception as erro:
+        print(
+            f"❌ Erro buscando configuração CallAuto: {erro}"
+        )
+
+        return None
+
+
+def pegar_todos_call_auto():
+    try:
+        resposta = (
+            supabase
+            .table("voice_auto_join")
+            .select("guild_id,channel_id,enabled")
+            .eq("enabled", True)
+            .execute()
+        )
+
+        resultados = []
+
+        for dados in resposta.data:
+            resultados.append((
+                dados.get("guild_id"),
+                dados.get("channel_id"),
+                dados.get("enabled")
+            ))
+
+        return resultados
+
+    except Exception as erro:
+        print(
+            f"❌ Erro buscando CallAuto: {erro}"
+        )
+
+        return []
