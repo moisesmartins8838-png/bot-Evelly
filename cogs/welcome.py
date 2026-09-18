@@ -8,6 +8,7 @@ from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 from supabase import create_client
+from cogs.permissoes import pode_controlar_evelly
 
 load_dotenv()
 
@@ -43,6 +44,15 @@ DEFAULT_CONFIG = {
     "canal_chat_id": None,
     "canal_cargos_id": None,
     "cargo_id": None,
+    "cargos_automaticos_ids": [],
+    "dm_ativo": True,
+    "dm_titulo": "💜 Bem-vindo(a) ao servidor!",
+    "dm_descricao": (
+        "Olá, {mention}! 👋\n\n"
+        "Você acabou de entrar no **{server}**.\n\n"
+        "Esperamos que você se divirta por aqui! ✨"
+    ),
+    "dm_conteudo": "",
 }
 
 
@@ -50,6 +60,18 @@ def normalizar_config(config: Optional[dict]) -> dict:
     resultado = deepcopy(DEFAULT_CONFIG)
     if isinstance(config, dict):
         resultado.update(config)
+
+    # Compatibilidade com configurações antigas que tinham apenas um cargo.
+    cargos = resultado.get("cargos_automaticos_ids")
+    if not isinstance(cargos, list):
+        cargos = []
+    cargos = [int(role_id) for role_id in cargos if str(role_id).isdigit()]
+
+    # Não transforma automaticamente o antigo cargo_id em cargo automático.
+    # cargo_id continua sendo o cargo exibido na mensagem; a lista nova controla
+    # exclusivamente os cargos que serão atribuídos ao entrar.
+    resultado["cargos_automaticos_ids"] = cargos[:10]
+    resultado["dm_ativo"] = bool(resultado.get("dm_ativo", True))
     return resultado
 
 
@@ -80,6 +102,12 @@ def substituir_variaveis(texto: str, member: discord.Member, config: dict) -> st
     def mention_role(role_id):
         return f"<@&{role_id}>" if role_id else "@não-configurado"
 
+    def mention_roles(role_ids):
+        if not role_ids:
+            return "@não-configurado"
+        mentions = [mention_role(role_id) for role_id in role_ids if role_id]
+        return " ".join(mentions) if mentions else "@não-configurado"
+
     valores = {
         "{user}": member.name,
         "{username}": member.name,
@@ -90,6 +118,7 @@ def substituir_variaveis(texto: str, member: discord.Member, config: dict) -> st
         "{chat}": mention_channel(config.get("canal_chat_id")),
         "{cargos}": mention_channel(config.get("canal_cargos_id")),
         "{cargo}": mention_role(config.get("cargo_id")),
+        "{cargos_automaticos}": mention_roles(config.get("cargos_automaticos_ids", [])),
         "{id}": str(member.id),
     }
 
@@ -154,6 +183,29 @@ def montar_embed(member: discord.Member, config: dict) -> discord.Embed:
     return embed
 
 
+def montar_embed_dm(member: discord.Member, config: dict) -> discord.Embed:
+    titulo = substituir_variaveis(config.get("dm_titulo", DEFAULT_CONFIG["dm_titulo"]), member, config)
+    descricao = substituir_variaveis(config.get("dm_descricao", DEFAULT_CONFIG["dm_descricao"]), member, config)
+    embed = discord.Embed(
+        title=titulo,
+        description=descricao,
+        color=discord.Color(config.get("cor", DEFAULT_CONFIG["cor"])),
+        timestamp=discord.utils.utcnow(),
+    )
+
+    if member.guild.icon:
+        embed.set_thumbnail(url=member.guild.icon.url)
+
+    midia = config.get("gif_url") or config.get("imagem_url")
+    if midia:
+        embed.set_image(url=midia)
+
+    footer = substituir_variaveis(config.get("footer", ""), member, config)
+    if footer:
+        embed.set_footer(text=footer)
+    return embed
+
+
 async def enviar_boas_vindas(
     member: discord.Member,
     config: dict,
@@ -171,6 +223,32 @@ async def enviar_boas_vindas(
             everyone=False,
         ),
     )
+
+
+async def enviar_boas_vindas_dm(member: discord.Member, config: dict) -> bool:
+    if not config.get("dm_ativo", True):
+        return False
+
+    embed = montar_embed_dm(member, config)
+    conteudo = substituir_variaveis(config.get("dm_conteudo", ""), member, config)
+
+    try:
+        await member.send(
+            content=conteudo or None,
+            embed=embed,
+            allowed_mentions=discord.AllowedMentions(
+                users=True,
+                roles=False,
+                everyone=False,
+            ),
+        )
+        return True
+    except discord.Forbidden:
+        print(f"[WELCOME] DM bloqueada por {member} ({member.id})", flush=True)
+        return False
+    except discord.HTTPException as exc:
+        print(f"[WELCOME] Erro HTTP enviando DM para {member}: {exc}", flush=True)
+        return False
 
 
 class WelcomeMessageModal(discord.ui.Modal, title="Mensagem de boas-vindas"):
@@ -296,6 +374,56 @@ class WelcomeMediaModal(discord.ui.Modal, title="Imagem / GIF"):
                 )
 
 
+class WelcomeDMModal(discord.ui.Modal, title="Mensagem de boas-vindas na DM"):
+    titulo = discord.ui.TextInput(
+        label="Título da DM",
+        placeholder="💜 Bem-vindo(a)!",
+        max_length=256,
+        required=True,
+    )
+
+    descricao = discord.ui.TextInput(
+        label="Descrição da DM",
+        style=discord.TextStyle.paragraph,
+        placeholder="Use {mention}, {server}, {cargos_automaticos}...",
+        max_length=4000,
+        required=True,
+    )
+
+    conteudo = discord.ui.TextInput(
+        label="Mensagem acima do embed",
+        placeholder="Opcional",
+        max_length=1000,
+        required=False,
+    )
+
+    def __init__(self, config: dict):
+        super().__init__()
+        self.config = config
+        self.titulo.default = config.get("dm_titulo", DEFAULT_CONFIG["dm_titulo"])
+        self.descricao.default = config.get("dm_descricao", DEFAULT_CONFIG["dm_descricao"])
+        self.conteudo.default = config.get("dm_conteudo", "")
+
+    async def on_submit(self, interaction: discord.Interaction):
+        self.config["dm_titulo"] = str(self.titulo.value).strip()
+        self.config["dm_descricao"] = str(self.descricao.value).strip()
+        self.config["dm_conteudo"] = str(self.conteudo.value).strip()
+
+        try:
+            await salvar_config(interaction.guild.id, self.config)
+            await interaction.response.send_message(
+                "💌 **Mensagem de DM atualizada e salva!**",
+                ephemeral=True,
+            )
+        except Exception as exc:
+            print(f"[WELCOME] Erro ao salvar DM: {exc}", flush=True)
+            if not interaction.response.is_done():
+                await interaction.response.send_message(
+                    "❌ Não foi possível salvar a configuração da DM.",
+                    ephemeral=True,
+                )
+
+
 class WelcomeChannelSelect(discord.ui.ChannelSelect):
     def __init__(self, cog):
         super().__init__(
@@ -363,74 +491,73 @@ class WelcomeRulesSelect(discord.ui.ChannelSelect):
 class WelcomeRoleSelect(discord.ui.RoleSelect):
     def __init__(self, cog):
         super().__init__(
-            placeholder="🏷️ Escolha o cargo para aparecer na mensagem",
-            min_values=1,
-            max_values=1,
+            placeholder="🏷️ Escolha até 10 cargos automáticos",
+            min_values=0,
+            max_values=10,
             row=2,
         )
         self.cog = cog
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            role = self.values[0]
-            if role.is_default():
-                await interaction.response.send_message(
-                    "❌ O cargo `@everyone` não pode ser usado.",
-                    ephemeral=True,
-                )
-                return
-
+            roles = [role for role in self.values if not role.is_default()]
             config = await obter_config(interaction.guild.id)
-            config["cargo_id"] = role.id
+            config["cargos_automaticos_ids"] = [role.id for role in roles][:10]
+
+            # Mantém o primeiro cargo também disponível na variável {cargo}.
+            config["cargo_id"] = roles[0].id if roles else None
             await salvar_config(interaction.guild.id, config)
-            await interaction.response.send_message(
-                f"🏷️ Cargo definido como {role.mention}.",
-                ephemeral=True,
-            )
+
+            if roles:
+                lista = " ".join(role.mention for role in roles)
+                msg = f"🏷️ Cargos automáticos salvos: {lista}"
+            else:
+                msg = "🏷️ Cargos automáticos removidos."
+
+            await interaction.response.send_message(msg, ephemeral=True)
         except Exception as exc:
-            print(f"[WELCOME] Erro ao salvar cargo: {exc}", flush=True)
+            print(f"[WELCOME] Erro ao salvar cargos automáticos: {exc}", flush=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "❌ Não foi possível salvar o cargo.",
+                    "❌ Não foi possível salvar os cargos automáticos.",
                     ephemeral=True,
                 )
 
 
 class WelcomePanel(discord.ui.View):
     def __init__(self, cog):
-        # Discord permite somente rows 0, 1, 2, 3 e 4.
         super().__init__(timeout=300)
         self.cog = cog
         self.add_item(WelcomeChannelSelect(cog))
         self.add_item(WelcomeRulesSelect(cog))
         self.add_item(WelcomeRoleSelect(cog))
 
-    @discord.ui.button(
-        label="Editar mensagem",
-        emoji="📝",
-        style=discord.ButtonStyle.primary,
-        row=3,
-    )
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if pode_controlar_evelly(interaction.user):
+            return True
+
+        await interaction.response.send_message(
+            "❌ Você não possui permissão para controlar a Evelly.",
+            ephemeral=True,
+        )
+        return False
+
+    @discord.ui.button(label="Editar mensagem", emoji="📝", style=discord.ButtonStyle.primary, row=3)
     async def editar(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         await interaction.response.send_modal(WelcomeMessageModal(self.cog, config))
 
-    @discord.ui.button(
-        label="Imagem / GIF",
-        emoji="🖼️",
-        style=discord.ButtonStyle.secondary,
-        row=3,
-    )
+    @discord.ui.button(label="Imagem / GIF", emoji="🖼️", style=discord.ButtonStyle.secondary, row=3)
     async def midia(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         await interaction.response.send_modal(WelcomeMediaModal(config))
 
-    @discord.ui.button(
-        label="Ativar",
-        emoji="🟢",
-        style=discord.ButtonStyle.success,
-        row=4,
-    )
+    @discord.ui.button(label="Configurar DM", emoji="💌", style=discord.ButtonStyle.secondary, row=3)
+    async def configurar_dm(self, interaction: discord.Interaction, button: discord.ui.Button):
+        config = await obter_config(interaction.guild.id)
+        await interaction.response.send_modal(WelcomeDMModal(config))
+
+    @discord.ui.button(label="Ativar", emoji="🟢", style=discord.ButtonStyle.success, row=4)
     async def ativar(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         if not config.get("canal_id"):
@@ -439,42 +566,37 @@ class WelcomePanel(discord.ui.View):
                 ephemeral=True,
             )
             return
-
         config["ativo"] = True
         await salvar_config(interaction.guild.id, config)
         await interaction.response.send_message(
-            "🟢 **Welcome ativado!** A Evelly enviará a mensagem quando alguém entrar.",
+            "🟢 **Welcome ativado!** A Evelly enviará a mensagem no canal, atribuirá os cargos automáticos e tentará enviar a DM.",
             ephemeral=True,
         )
 
-    @discord.ui.button(
-        label="Desativar",
-        emoji="🔴",
-        style=discord.ButtonStyle.danger,
-        row=4,
-    )
+    @discord.ui.button(label="Desativar", emoji="🔴", style=discord.ButtonStyle.danger, row=4)
     async def desativar(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         config["ativo"] = False
         await salvar_config(interaction.guild.id, config)
+        await interaction.response.send_message("🔴 **Welcome desativado.**", ephemeral=True)
+
+    @discord.ui.button(label="DM: ON/OFF", emoji="💌", style=discord.ButtonStyle.secondary, row=4)
+    async def dm_toggle(self, interaction: discord.Interaction, button: discord.ui.Button):
+        config = await obter_config(interaction.guild.id)
+        config["dm_ativo"] = not config.get("dm_ativo", True)
+        await salvar_config(interaction.guild.id, config)
+        status = "ATIVADA 🟢" if config["dm_ativo"] else "DESATIVADA 🔴"
         await interaction.response.send_message(
-            "🔴 **Welcome desativado.**",
+            f"💌 DM de boas-vindas **{status}**.",
             ephemeral=True,
         )
 
-    @discord.ui.button(
-        label="Testar agora",
-        emoji="👁️",
-        style=discord.ButtonStyle.primary,
-        row=4,
-    )
+    @discord.ui.button(label="Testar agora", emoji="👁️", style=discord.ButtonStyle.primary, row=4)
     async def testar(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         member = interaction.guild.me or interaction.user
-
         embed = montar_embed(member, config)
         conteudo = substituir_variaveis(config.get("conteudo", ""), member, config)
-
         await interaction.response.send_message(
             content=conteudo or None,
             embed=embed,
@@ -482,19 +604,11 @@ class WelcomePanel(discord.ui.View):
             ephemeral=True,
         )
 
-    @discord.ui.button(
-        label="Atualizar painel",
-        emoji="🔄",
-        style=discord.ButtonStyle.secondary,
-        row=4,
-    )
+    @discord.ui.button(label="Atualizar painel", emoji="🔄", style=discord.ButtonStyle.secondary, row=4)
     async def atualizar(self, interaction: discord.Interaction, button: discord.ui.Button):
         config = await obter_config(interaction.guild.id)
         embed = self.cog.painel_embed(interaction.guild, config)
-        await interaction.response.edit_message(
-            embed=embed,
-            view=WelcomePanel(self.cog),
-        )
+        await interaction.response.edit_message(embed=embed, view=WelcomePanel(self.cog))
 
 
 class Welcome(commands.Cog):
@@ -510,6 +624,9 @@ class Welcome(commands.Cog):
         chat = guild.get_channel(config.get("canal_chat_id")) if config.get("canal_chat_id") else None
         cargos = guild.get_channel(config.get("canal_cargos_id")) if config.get("canal_cargos_id") else None
         role = guild.get_role(config.get("cargo_id")) if config.get("cargo_id") else None
+        auto_roles = [guild.get_role(role_id) for role_id in config.get("cargos_automaticos_ids", [])]
+        auto_roles = [role for role in auto_roles if role is not None]
+        auto_roles_text = " ".join(role.mention for role in auto_roles) if auto_roles else "Nenhum"
 
         embed = discord.Embed(
             title="💜 EVELLY • WELCOME SYSTEM",
@@ -521,6 +638,8 @@ class Welcome(commands.Cog):
                 f"💬 **Chat:** {chat.mention if chat else 'Não configurado'}\n"
                 f"🏷️ **Cargos:** {cargos.mention if cargos else 'Não configurado'}\n"
                 f"🎖️ **Cargo:** {role.mention if role else 'Não configurado'}\n"
+                f"🏷️ **Cargos automáticos:** {auto_roles_text}\n"
+                f"💌 **DM:** {'ATIVA' if config.get('dm_ativo', True) else 'DESATIVADA'}\n"
                 f"🎨 **Cor:** `#{config.get('cor', DEFAULT_CONFIG['cor']):06X}`\n"
                 f"🖼️ **Mídia:** {'GIF' if config.get('gif_url') else 'Imagem' if config.get('imagem_url') else 'Nenhuma'}"
             ),
@@ -541,7 +660,7 @@ class Welcome(commands.Cog):
         name="welcome",
         description="Abre o painel completo de boas-vindas da Evelly.",
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(lambda interaction: pode_controlar_evelly(interaction.user))
     async def welcome(self, interaction: discord.Interaction):
         """
         IMPORTANTE:
@@ -604,7 +723,7 @@ class Welcome(commands.Cog):
         name="welcome_teste",
         description="Testa a mensagem de boas-vindas.",
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(lambda interaction: pode_controlar_evelly(interaction.user))
     async def welcome_teste(self, interaction: discord.Interaction):
         config = await obter_config(interaction.guild.id)
         embed = montar_embed(interaction.user, config)
@@ -619,7 +738,7 @@ class Welcome(commands.Cog):
         name="welcome_ativar",
         description="Ativa o sistema de boas-vindas.",
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(lambda interaction: pode_controlar_evelly(interaction.user))
     async def welcome_ativar(self, interaction: discord.Interaction):
         config = await obter_config(interaction.guild.id)
         if not config.get("canal_id"):
@@ -639,7 +758,7 @@ class Welcome(commands.Cog):
         name="welcome_desativar",
         description="Desativa o sistema de boas-vindas.",
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(lambda interaction: pode_controlar_evelly(interaction.user))
     async def welcome_desativar(self, interaction: discord.Interaction):
         config = await obter_config(interaction.guild.id)
         config["ativo"] = False
@@ -652,7 +771,7 @@ class Welcome(commands.Cog):
         name="welcome_midia",
         description="Define imagem e/ou GIF por anexo.",
     )
-    @app_commands.checks.has_permissions(administrator=True)
+    @app_commands.check(lambda interaction: pode_controlar_evelly(interaction.user))
     @app_commands.describe(imagem="Imagem anexada", gif="GIF anexado")
     async def welcome_midia(
         self,
@@ -684,22 +803,57 @@ class Welcome(commands.Cog):
         try:
             config = await obter_config(member.guild.id)
 
-            if not config.get("ativo") or not config.get("canal_id"):
+            if not config.get("ativo"):
                 return
 
-            canal = member.guild.get_channel(config["canal_id"])
-            if canal is None or not isinstance(canal, (discord.TextChannel, discord.Thread)):
+            # 1) Atribui os cargos automáticos configurados.
+            cargos_config = config.get("cargos_automaticos_ids", [])
+            roles = []
+            for role_id in cargos_config:
+                role = member.guild.get_role(role_id)
+                if role is None or role.is_default() or role.managed:
+                    continue
+                roles.append(role)
+
+            if roles:
+                try:
+                    await member.add_roles(
+                        *roles,
+                        reason="Evelly • cargo automático de entrada",
+                    )
+                    print(
+                        f"[WELCOME] Cargos automáticos atribuídos para {member}: "
+                        f"{', '.join(role.name for role in roles)}",
+                        flush=True,
+                    )
+                except discord.Forbidden:
+                    print(
+                        f"[WELCOME] Sem permissão/hierarquia para atribuir cargos a {member}",
+                        flush=True,
+                    )
+                except discord.HTTPException as exc:
+                    print(
+                        f"[WELCOME] Erro HTTP atribuindo cargos a {member}: {exc}",
+                        flush=True,
+                    )
+
+            # 2) Mensagem pública, caso um canal tenha sido configurado.
+            canal = member.guild.get_channel(config.get("canal_id")) if config.get("canal_id") else None
+            if canal is not None and isinstance(canal, (discord.TextChannel, discord.Thread)):
+                await enviar_boas_vindas(member, config, canal)
                 print(
-                    f"[WELCOME] Canal não encontrado no servidor {member.guild.id}",
+                    f"[WELCOME] Boas-vindas públicas enviadas para {member} em {member.guild.name}",
                     flush=True,
                 )
-                return
 
-            await enviar_boas_vindas(member, config, canal)
-            print(
-                f"[WELCOME] Boas-vindas enviadas para {member} em {member.guild.name}",
-                flush=True,
-            )
+            # 3) DM de boas-vindas. Falha de DM não impede o restante do sistema.
+            if config.get("dm_ativo", True):
+                enviada = await enviar_boas_vindas_dm(member, config)
+                print(
+                    f"[WELCOME] DM {'enviada' if enviada else 'não enviada'} para {member}",
+                    flush=True,
+                )
+
         except Exception as exc:
             print(f"[WELCOME] Erro no on_member_join: {exc}", flush=True)
 
