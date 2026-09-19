@@ -1,6 +1,7 @@
 import os
 
 from dotenv import load_dotenv
+from datetime import datetime, timezone
 from supabase import create_client, Client
 
 
@@ -22,7 +23,7 @@ if not SUPABASE_URL:
 
 if not SUPABASE_KEY:
     raise RuntimeError(
-        "❌ SUPABASE_PUBLISHABLE_KEY não encontrada no .env"
+        "❌ SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_PUBLISHABLE_KEY não encontrada no .env"
     )
 
 
@@ -484,7 +485,7 @@ def atualizar_ultimo_video(
             f"❌ Erro atualizando último vídeo: {erro}"
         )
 
-        # =========================================================
+# =========================================================
 # CALL AUTO
 # =========================================================
 
@@ -495,19 +496,10 @@ def configurar_call_auto(guild_id, channel_id):
             "channel_id": channel_id,
             "enabled": True
         }).execute()
-
-        print(
-            f"☁️ CallAuto ativado no servidor {guild_id} "
-            f"para o canal {channel_id}."
-        )
-
+        print(f"☁️ CallAuto ativado no servidor {guild_id} para o canal {channel_id}.")
         return True
-
     except Exception as erro:
-        print(
-            f"❌ Erro configurando CallAuto: {erro}"
-        )
-
+        print(f"❌ Erro configurando CallAuto: {erro}")
         return False
 
 
@@ -515,78 +507,183 @@ def desativar_call_auto(guild_id):
     try:
         supabase.table("voice_auto_join").update({
             "enabled": False
-        }).eq(
-            "guild_id",
-            guild_id
-        ).execute()
-
-        print(
-            f"☁️ CallAuto desativado no servidor {guild_id}."
-        )
-
+        }).eq("guild_id", guild_id).execute()
+        print(f"☁️ CallAuto desativado no servidor {guild_id}.")
         return True
-
     except Exception as erro:
-        print(
-            f"❌ Erro desativando CallAuto: {erro}"
-        )
-
+        print(f"❌ Erro desativando CallAuto: {erro}")
         return False
 
 
 def pegar_call_auto(guild_id):
     try:
         resposta = (
-            supabase
-            .table("voice_auto_join")
+            supabase.table("voice_auto_join")
             .select("guild_id,channel_id,enabled")
             .eq("guild_id", guild_id)
             .execute()
         )
-
         if not resposta.data:
             return None
-
         dados = resposta.data[0]
-
-        return (
-            dados.get("guild_id"),
-            dados.get("channel_id"),
-            dados.get("enabled")
-        )
-
+        return (dados.get("guild_id"), dados.get("channel_id"), dados.get("enabled"))
     except Exception as erro:
-        print(
-            f"❌ Erro buscando configuração CallAuto: {erro}"
-        )
-
+        print(f"❌ Erro buscando configuração CallAuto: {erro}")
         return None
 
 
 def pegar_todos_call_auto():
     try:
         resposta = (
-            supabase
-            .table("voice_auto_join")
+            supabase.table("voice_auto_join")
             .select("guild_id,channel_id,enabled")
             .eq("enabled", True)
             .execute()
         )
-
         resultados = []
-
         for dados in resposta.data:
-            resultados.append((
-                dados.get("guild_id"),
-                dados.get("channel_id"),
-                dados.get("enabled")
-            ))
-
+            resultados.append((dados.get("guild_id"), dados.get("channel_id"), dados.get("enabled")))
         return resultados
-
     except Exception as erro:
-        print(
-            f"❌ Erro buscando CallAuto: {erro}"
-        )
-
+        print(f"❌ Erro buscando configurações CallAuto: {erro}")
         return []
+
+
+# =========================================================
+# AUTO MESSAGE
+# =========================================================
+
+def criar_auto_message(
+    guild_id,
+    channel_id,
+    title,
+    description,
+    content,
+    color,
+    interval_days,
+    mode,
+    message_id,
+    next_send_at,
+    created_by
+):
+    try:
+        dados = {
+            "guild_id": guild_id,
+            "channel_id": channel_id,
+            "title": title or "",
+            "description": description or "",
+            "content": content or "",
+            "color": color,
+            "interval_days": interval_days,
+            "mode": mode,
+            "enabled": True,
+            "message_id": message_id,
+            "last_sent_at": None,
+            "next_send_at": next_send_at,
+            "created_by": created_by
+        }
+        resposta = supabase.table("auto_messages").insert(dados).execute()
+        if not resposta.data:
+            return None
+        auto_id = resposta.data[0].get("id")
+        print(f"🤖 AutoMensagem criada: {auto_id}", flush=True)
+        return auto_id
+    except Exception as erro:
+        print(f"❌ Erro criando AutoMensagem: {erro}")
+        return None
+
+
+def listar_auto_messages(guild_id):
+    try:
+        resposta = (
+            supabase.table("auto_messages")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("id")
+            .execute()
+        )
+        return resposta.data or []
+    except Exception as erro:
+        print(f"❌ Erro listando AutoMensagens: {erro}")
+        return []
+
+
+def pegar_auto_message(auto_id, guild_id=None):
+    try:
+        consulta = supabase.table("auto_messages").select("*").eq("id", auto_id)
+        if guild_id is not None:
+            consulta = consulta.eq("guild_id", guild_id)
+        resposta = consulta.limit(1).execute()
+        if not resposta.data:
+            return None
+        return resposta.data[0]
+    except Exception as erro:
+        print(f"❌ Erro buscando AutoMensagem: {erro}")
+        return None
+
+
+def pegar_auto_messages_pendentes():
+    try:
+        agora = datetime.now(timezone.utc).isoformat()
+        resposta = (
+            supabase.table("auto_messages")
+            .select("*")
+            .eq("enabled", True)
+            .lte("next_send_at", agora)
+            .order("next_send_at")
+            .execute()
+        )
+        return resposta.data or []
+    except Exception as erro:
+        print(f"❌ Erro buscando AutoMensagens pendentes: {erro}")
+        return []
+
+
+def atualizar_auto_message(auto_id, **dados):
+    try:
+        dados["updated_at"] = datetime.now(timezone.utc).isoformat()
+        resposta = (
+            supabase.table("auto_messages")
+            .update(dados)
+            .eq("id", auto_id)
+            .execute()
+        )
+        return bool(resposta.data)
+    except Exception as erro:
+        print(f"❌ Erro atualizando AutoMensagem: {erro}")
+        return False
+
+
+def excluir_auto_message(auto_id, guild_id=None):
+    try:
+        consulta = supabase.table("auto_messages").delete().eq("id", auto_id)
+        if guild_id is not None:
+            consulta = consulta.eq("guild_id", guild_id)
+        resposta = consulta.execute()
+        return bool(resposta.data)
+    except Exception as erro:
+        print(f"❌ Erro excluindo AutoMensagem: {erro}")
+        return False
+
+
+def registrar_auto_message_log(
+    auto_message_id,
+    guild_id,
+    channel_id,
+    action,
+    message_id=None,
+    details=None
+):
+    try:
+        supabase.table("auto_message_logs").insert({
+            "auto_message_id": auto_message_id,
+            "guild_id": guild_id,
+            "channel_id": channel_id,
+            "action": action,
+            "message_id": message_id,
+            "details": details
+        }).execute()
+        return True
+    except Exception as erro:
+        print(f"❌ Erro registrando log AutoMensagem: {erro}")
+        return False
