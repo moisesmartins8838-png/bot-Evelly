@@ -148,6 +148,9 @@ class Evelly(commands.Bot):
             "cogs.callauto",
             "cogs.permissoes",
             "cogs.automsg",
+            "cogs.ticket",
+            "cogs.sugestao",
+            "cogs.evelly",
         ]
 
 
