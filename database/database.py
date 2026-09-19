@@ -1,4 +1,4 @@
-import os
+﻿import os
 
 from dotenv import load_dotenv
 from datetime import datetime, timezone
@@ -17,13 +17,13 @@ SUPABASE_KEY = (
 
 if not SUPABASE_URL:
     raise RuntimeError(
-        "❌ SUPABASE_URL não encontrada no .env"
+        "âŒ SUPABASE_URL nÃ£o encontrada no .env"
     )
 
 
 if not SUPABASE_KEY:
     raise RuntimeError(
-        "❌ SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_PUBLISHABLE_KEY não encontrada no .env"
+        "âŒ SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_PUBLISHABLE_KEY nÃ£o encontrada no .env"
     )
 
 
@@ -39,7 +39,7 @@ supabase: Client = create_client(
 
 def criar_banco():
 
-    print("☁️ Banco Supabase conectado!")
+    print("â˜ï¸ Banco Supabase conectado!")
 
 
 # =========================================================
@@ -66,13 +66,13 @@ def criar_servidor(guild_id):
         }).execute()
 
         print(
-            f"☁️ Servidor {guild_id} salvo no Supabase."
+            f"â˜ï¸ Servidor {guild_id} salvo no Supabase."
         )
 
     except Exception as erro:
 
         print(
-            f"❌ Erro criando servidor {guild_id}: {erro}"
+            f"âŒ Erro criando servidor {guild_id}: {erro}"
         )
 
 
@@ -106,14 +106,14 @@ def pegar_servidor(guild_id):
     except Exception as erro:
 
         print(
-            f"❌ Erro buscando servidor {guild_id}: {erro}"
+            f"âŒ Erro buscando servidor {guild_id}: {erro}"
         )
 
         return None
 
 
 # =========================================================
-# CANAL DE NOTIFICAÇÃO
+# CANAL DE NOTIFICAÃ‡ÃƒO
 # =========================================================
 
 def configurar_canal_notificacao(
@@ -133,7 +133,7 @@ def configurar_canal_notificacao(
         ).execute()
 
         print(
-            f"☁️ Canal de notificação salvo: {canal_id}"
+            f"â˜ï¸ Canal de notificaÃ§Ã£o salvo: {canal_id}"
         )
 
         return True
@@ -141,7 +141,7 @@ def configurar_canal_notificacao(
     except Exception as erro:
 
         print(
-            f"❌ Erro salvando canal: {erro}"
+            f"âŒ Erro salvando canal: {erro}"
         )
 
         return False
@@ -161,7 +161,7 @@ def remover_canal_notificacao(guild_id):
         ).execute()
 
         print(
-            "☁️ Canal de notificação removido."
+            "â˜ï¸ Canal de notificaÃ§Ã£o removido."
         )
 
         return True
@@ -169,14 +169,14 @@ def remover_canal_notificacao(guild_id):
     except Exception as erro:
 
         print(
-            f"❌ Erro removendo canal: {erro}"
+            f"âŒ Erro removendo canal: {erro}"
         )
 
         return False
 
 
 # =========================================================
-# CARGO DE NOTIFICAÇÃO
+# CARGO DE NOTIFICAÃ‡ÃƒO
 # =========================================================
 
 def configurar_cargo_notificacao(
@@ -196,7 +196,7 @@ def configurar_cargo_notificacao(
         ).execute()
 
         print(
-            f"☁️ Cargo de notificação salvo: {cargo_id}"
+            f"â˜ï¸ Cargo de notificaÃ§Ã£o salvo: {cargo_id}"
         )
 
         return True
@@ -204,7 +204,7 @@ def configurar_cargo_notificacao(
     except Exception as erro:
 
         print(
-            f"❌ Erro salvando cargo: {erro}"
+            f"âŒ Erro salvando cargo: {erro}"
         )
 
         return False
@@ -224,7 +224,7 @@ def remover_cargo_notificacao(guild_id):
         ).execute()
 
         print(
-            "☁️ Cargo de notificação removido."
+            "â˜ï¸ Cargo de notificaÃ§Ã£o removido."
         )
 
         return True
@@ -232,7 +232,7 @@ def remover_cargo_notificacao(guild_id):
     except Exception as erro:
 
         print(
-            f"❌ Erro removendo cargo: {erro}"
+            f"âŒ Erro removendo cargo: {erro}"
         )
 
         return False
@@ -259,7 +259,7 @@ def configurar_mensagem_youtube(
         ).execute()
 
         print(
-            "☁️ Mensagem do YouTube salva."
+            "â˜ï¸ Mensagem do YouTube salva."
         )
 
         return True
@@ -267,7 +267,7 @@ def configurar_mensagem_youtube(
     except Exception as erro:
 
         print(
-            f"❌ Erro salvando mensagem: {erro}"
+            f"âŒ Erro salvando mensagem: {erro}"
         )
 
         return False
@@ -287,7 +287,7 @@ def remover_mensagem_youtube(guild_id):
         ).execute()
 
         print(
-            "☁️ Mensagem personalizada removida."
+            "â˜ï¸ Mensagem personalizada removida."
         )
 
         return True
@@ -295,7 +295,7 @@ def remover_mensagem_youtube(guild_id):
     except Exception as erro:
 
         print(
-            f"❌ Erro removendo mensagem: {erro}"
+            f"âŒ Erro removendo mensagem: {erro}"
         )
 
         return False
@@ -335,7 +335,7 @@ def adicionar_youtube(
         )
 
         print(
-            f"☁️ Canal do YouTube salvo: {nome}"
+            f"â˜ï¸ Canal do YouTube salvo: {nome}"
         )
 
         return resposta.data
@@ -343,7 +343,7 @@ def adicionar_youtube(
     except Exception as erro:
 
         print(
-            f"❌ Erro salvando canal do YouTube: {erro}"
+            f"âŒ Erro salvando canal do YouTube: {erro}"
         )
 
         return None
@@ -370,7 +370,7 @@ def remover_youtube(
         if removido:
 
             print(
-                f"☁️ Canal removido: {youtube_id}"
+                f"â˜ï¸ Canal removido: {youtube_id}"
             )
 
         return removido
@@ -378,7 +378,7 @@ def remover_youtube(
     except Exception as erro:
 
         print(
-            f"❌ Erro removendo YouTube: {erro}"
+            f"âŒ Erro removendo YouTube: {erro}"
         )
 
         return False
@@ -415,7 +415,7 @@ def listar_youtube(guild_id):
     except Exception as erro:
 
         print(
-            f"❌ Erro listando canais: {erro}"
+            f"âŒ Erro listando canais: {erro}"
         )
 
         return []
@@ -455,7 +455,7 @@ def pegar_todos_youtube():
     except Exception as erro:
 
         print(
-            f"❌ Erro buscando canais do YouTube: {erro}"
+            f"âŒ Erro buscando canais do YouTube: {erro}"
         )
 
         return []
@@ -476,13 +476,13 @@ def atualizar_ultimo_video(
         ).execute()
 
         print(
-            f"☁️ Último vídeo atualizado: {video_id}"
+            f"â˜ï¸ Ãšltimo vÃ­deo atualizado: {video_id}"
         )
 
     except Exception as erro:
 
         print(
-            f"❌ Erro atualizando último vídeo: {erro}"
+            f"âŒ Erro atualizando Ãºltimo vÃ­deo: {erro}"
         )
 
 # =========================================================
@@ -496,10 +496,10 @@ def configurar_call_auto(guild_id, channel_id):
             "channel_id": channel_id,
             "enabled": True
         }).execute()
-        print(f"☁️ CallAuto ativado no servidor {guild_id} para o canal {channel_id}.")
+        print(f"â˜ï¸ CallAuto ativado no servidor {guild_id} para o canal {channel_id}.")
         return True
     except Exception as erro:
-        print(f"❌ Erro configurando CallAuto: {erro}")
+        print(f"âŒ Erro configurando CallAuto: {erro}")
         return False
 
 
@@ -508,10 +508,10 @@ def desativar_call_auto(guild_id):
         supabase.table("voice_auto_join").update({
             "enabled": False
         }).eq("guild_id", guild_id).execute()
-        print(f"☁️ CallAuto desativado no servidor {guild_id}.")
+        print(f"â˜ï¸ CallAuto desativado no servidor {guild_id}.")
         return True
     except Exception as erro:
-        print(f"❌ Erro desativando CallAuto: {erro}")
+        print(f"âŒ Erro desativando CallAuto: {erro}")
         return False
 
 
@@ -528,7 +528,7 @@ def pegar_call_auto(guild_id):
         dados = resposta.data[0]
         return (dados.get("guild_id"), dados.get("channel_id"), dados.get("enabled"))
     except Exception as erro:
-        print(f"❌ Erro buscando configuração CallAuto: {erro}")
+        print(f"âŒ Erro buscando configuraÃ§Ã£o CallAuto: {erro}")
         return None
 
 
@@ -545,7 +545,7 @@ def pegar_todos_call_auto():
             resultados.append((dados.get("guild_id"), dados.get("channel_id"), dados.get("enabled")))
         return resultados
     except Exception as erro:
-        print(f"❌ Erro buscando configurações CallAuto: {erro}")
+        print(f"âŒ Erro buscando configuraÃ§Ãµes CallAuto: {erro}")
         return []
 
 
@@ -586,10 +586,10 @@ def criar_auto_message(
         if not resposta.data:
             return None
         auto_id = resposta.data[0].get("id")
-        print(f"🤖 AutoMensagem criada: {auto_id}", flush=True)
+        print(f"ðŸ¤– AutoMensagem criada: {auto_id}", flush=True)
         return auto_id
     except Exception as erro:
-        print(f"❌ Erro criando AutoMensagem: {erro}")
+        print(f"âŒ Erro criando AutoMensagem: {erro}")
         return None
 
 
@@ -604,7 +604,7 @@ def listar_auto_messages(guild_id):
         )
         return resposta.data or []
     except Exception as erro:
-        print(f"❌ Erro listando AutoMensagens: {erro}")
+        print(f"âŒ Erro listando AutoMensagens: {erro}")
         return []
 
 
@@ -618,7 +618,7 @@ def pegar_auto_message(auto_id, guild_id=None):
             return None
         return resposta.data[0]
     except Exception as erro:
-        print(f"❌ Erro buscando AutoMensagem: {erro}")
+        print(f"âŒ Erro buscando AutoMensagem: {erro}")
         return None
 
 
@@ -635,7 +635,7 @@ def pegar_auto_messages_pendentes():
         )
         return resposta.data or []
     except Exception as erro:
-        print(f"❌ Erro buscando AutoMensagens pendentes: {erro}")
+        print(f"âŒ Erro buscando AutoMensagens pendentes: {erro}")
         return []
 
 
@@ -650,7 +650,7 @@ def atualizar_auto_message(auto_id, **dados):
         )
         return bool(resposta.data)
     except Exception as erro:
-        print(f"❌ Erro atualizando AutoMensagem: {erro}")
+        print(f"âŒ Erro atualizando AutoMensagem: {erro}")
         return False
 
 
@@ -662,7 +662,7 @@ def excluir_auto_message(auto_id, guild_id=None):
         resposta = consulta.execute()
         return bool(resposta.data)
     except Exception as erro:
-        print(f"❌ Erro excluindo AutoMensagem: {erro}")
+        print(f"âŒ Erro excluindo AutoMensagem: {erro}")
         return False
 
 
@@ -685,7 +685,7 @@ def registrar_auto_message_log(
         }).execute()
         return True
     except Exception as erro:
-        print(f"❌ Erro registrando log AutoMensagem: {erro}")
+        print(f"âŒ Erro registrando log AutoMensagem: {erro}")
         return False
 
 
@@ -712,13 +712,13 @@ def salvar_cargo_admin(guild_id, role_id):
         ok = bool(resposta.data)
         if ok:
             print(
-                f"🛡️ Cargo administrador salvo: guild={guild_id} role={role_id}",
+                f"ðŸ›¡ï¸ Cargo administrador salvo: guild={guild_id} role={role_id}",
                 flush=True,
             )
         return ok
 
     except Exception as erro:
-        print(f"❌ Erro salvando cargo administrador: {erro}", flush=True)
+        print(f"âŒ Erro salvando cargo administrador: {erro}", flush=True)
         return False
 
 
@@ -741,7 +741,7 @@ def pegar_cargo_admin(guild_id):
         return int(role_id) if role_id else None
 
     except Exception as erro:
-        print(f"❌ Erro buscando cargo administrador: {erro}", flush=True)
+        print(f"âŒ Erro buscando cargo administrador: {erro}", flush=True)
         return None
 
 
@@ -757,11 +757,11 @@ def remover_cargo_admin(guild_id):
         )
 
         print(
-            f"🛡️ Cargo administrador removido: guild={guild_id}",
+            f"ðŸ›¡ï¸ Cargo administrador removido: guild={guild_id}",
             flush=True,
         )
         return True
 
     except Exception as erro:
-        print(f"❌ Erro removendo cargo administrador: {erro}", flush=True)
+        print(f"âŒ Erro removendo cargo administrador: {erro}", flush=True)
         return False

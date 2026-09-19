@@ -284,12 +284,33 @@ class AutoMsgCreateView(discord.ui.View):
             "message_id": None,
         }
 
+        print(
+            f"[AUTOMSG] Iniciando criação no servidor {guild.id} | "
+            f"canal={channel.id} | modo={self.data['mode']} | "
+            f"intervalo={self.data['interval_days']}d",
+            flush=True,
+        )
+
+        print(
+            "[AUTOMSG] Enviando primeira mensagem...",
+            flush=True,
+        )
+
         message, ok, details = await self.cog.send_automation(guild, config, update_existing=False)
         if not ok:
+            print(
+                f"[AUTOMSG] Falha ao enviar primeira mensagem: {details}",
+                flush=True,
+            )
             await interaction.followup.send(details, ephemeral=True)
             return
 
         next_send = now_utc() + timedelta(days=self.data["interval_days"])
+        print(
+            "[AUTOMSG] Primeira mensagem enviada. Salvando automação no Supabase...",
+            flush=True,
+        )
+
         auto_id = criar_auto_message(
             guild_id=guild.id,
             channel_id=channel.id,
@@ -308,6 +329,10 @@ class AutoMsgCreateView(discord.ui.View):
             auto_id = auto_id.get("id")
 
         if not auto_id:
+            print(
+                "[AUTOMSG] ERRO: mensagem foi enviada, mas o INSERT no Supabase falhou.",
+                flush=True,
+            )
             await interaction.followup.send(
                 "⚠️ A mensagem foi enviada, mas não consegui salvar a automação no Supabase. "
                 "Confira o console da Evelly.",
@@ -316,6 +341,11 @@ class AutoMsgCreateView(discord.ui.View):
             return
 
         auto_id = int(auto_id)
+
+        print(
+            f"[AUTOMSG] Automação criada com sucesso: ID={auto_id}",
+            flush=True,
+        )
 
         registrar_auto_message_log(
             auto_message_id=auto_id,
@@ -326,10 +356,38 @@ class AutoMsgCreateView(discord.ui.View):
             details=f"mode={self.data['mode']}; invite={self.data['invite_url'] or 'none'}",
         )
 
+        # Recarrega o painel com os dados atuais do Supabase.
+        # Isso faz a nova automação aparecer imediatamente no seletor,
+        # sem exigir que o usuário feche e abra /automsg painel.
+        items = listar_auto_messages(guild.id)
+
         await interaction.followup.send(
             f"✅ AutoMensagem `{auto_id}` criada e enviada agora.",
             ephemeral=True,
         )
+
+        # Atualiza a mensagem original do painel de criação.
+        # O modal/botão de criação está em uma mensagem existente.
+        # Depois da criação, voltamos para o painel principal já atualizado.
+        try:
+            await interaction.edit_original_response(
+                content=None,
+                embed=self.cog.panel_embed(
+                    guild,
+                    pegar_auto_message(auto_id, guild.id),
+                    len(items),
+                ),
+                view=AutoMsgPanel(
+                    self.cog,
+                    self.user_id,
+                    items,
+                ),
+            )
+        except Exception as exc:
+            print(
+                f"[AUTOMSG] Aviso ao atualizar painel após criação: {exc}",
+                flush=True,
+            )
 
     @discord.ui.button(label="Cancelar", emoji="✖️", style=discord.ButtonStyle.danger, row=3)
     async def cancelar(self, interaction: discord.Interaction, button: discord.ui.Button):
