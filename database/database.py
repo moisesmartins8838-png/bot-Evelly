@@ -687,3 +687,81 @@ def registrar_auto_message_log(
     except Exception as erro:
         print(f"❌ Erro registrando log AutoMensagem: {erro}")
         return False
+
+
+# ============================================================
+# CARGO DE ADMINISTRADOR DA EVELLY
+# ============================================================
+
+def salvar_cargo_admin(guild_id, role_id):
+    """Salva ou atualiza o cargo autorizado a controlar a Evelly."""
+    try:
+        dados = {
+            "guild_id": int(guild_id),
+            "role_id": int(role_id),
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        resposta = (
+            supabase
+            .table("evelly_admin_roles")
+            .upsert(dados, on_conflict="guild_id")
+            .execute()
+        )
+
+        ok = bool(resposta.data)
+        if ok:
+            print(
+                f"🛡️ Cargo administrador salvo: guild={guild_id} role={role_id}",
+                flush=True,
+            )
+        return ok
+
+    except Exception as erro:
+        print(f"❌ Erro salvando cargo administrador: {erro}", flush=True)
+        return False
+
+
+def pegar_cargo_admin(guild_id):
+    """Retorna o ID do cargo administrador configurado para o servidor."""
+    try:
+        resposta = (
+            supabase
+            .table("evelly_admin_roles")
+            .select("role_id")
+            .eq("guild_id", int(guild_id))
+            .limit(1)
+            .execute()
+        )
+
+        if not resposta.data:
+            return None
+
+        role_id = resposta.data[0].get("role_id")
+        return int(role_id) if role_id else None
+
+    except Exception as erro:
+        print(f"❌ Erro buscando cargo administrador: {erro}", flush=True)
+        return None
+
+
+def remover_cargo_admin(guild_id):
+    """Remove o cargo administrador configurado."""
+    try:
+        resposta = (
+            supabase
+            .table("evelly_admin_roles")
+            .delete()
+            .eq("guild_id", int(guild_id))
+            .execute()
+        )
+
+        print(
+            f"🛡️ Cargo administrador removido: guild={guild_id}",
+            flush=True,
+        )
+        return True
+
+    except Exception as erro:
+        print(f"❌ Erro removendo cargo administrador: {erro}", flush=True)
+        return False

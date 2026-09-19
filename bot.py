@@ -146,6 +146,7 @@ class Evelly(commands.Bot):
             "cogs.linknot",
             "cogs.welcome",
             "cogs.callauto",
+            "cogs.permissoes",
             "cogs.automsg",
         ]
 

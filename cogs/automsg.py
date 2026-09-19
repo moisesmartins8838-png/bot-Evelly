@@ -9,6 +9,8 @@ from discord import app_commands
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
 
+from cogs.permissoes import pode_controlar_evelly
+
 from database.database import (
     criar_auto_message,
     listar_auto_messages,
@@ -24,13 +26,6 @@ load_dotenv()
 DEFAULT_COLOR = 0x9B59B6
 INVITE_MARKER = "__EVELLY_AUTOMSG_INVITE__"
 PROCESS_INTERVAL_SECONDS = 60
-
-
-def is_owner(user: discord.abc.User) -> bool:
-    try:
-        return user.id == int(os.getenv("OWNER_ID", "0"))
-    except (TypeError, ValueError):
-        return False
 
 
 def now_utc() -> datetime:
@@ -252,8 +247,8 @@ class AutoMsgCreateView(discord.ui.View):
         if interaction.user.id != self.user_id:
             await interaction.response.send_message("❌ Este painel pertence a outra interação.", ephemeral=True)
             return False
-        if not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar este painel.", ephemeral=True)
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar este painel.", ephemeral=True)
             return False
         return True
 
@@ -435,10 +430,10 @@ class AutoMsgPanel(discord.ui.View):
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("❌ Este painel pertence ao proprietário da Evelly.", ephemeral=True)
+            await interaction.response.send_message("❌ Este painel pertence ao usuário que abriu o painel.", ephemeral=True)
             return False
-        if not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar o AutoMensagem.", ephemeral=True)
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar o AutoMensagem.", ephemeral=True)
             return False
         return True
 
@@ -656,8 +651,8 @@ class AutoMsgEditView(discord.ui.View):
         self.add_item(AutoMsgEditIntervalSelect(self))
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id or not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar este painel.", ephemeral=True)
+        if interaction.user.id != self.user_id or not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar este painel.", ephemeral=True)
             return False
         return True
 
@@ -1023,8 +1018,8 @@ class AutoMensagem(commands.Cog):
 
     @automsg.command(name="painel", description="Abre o painel visual do AutoMensagem.")
     async def painel(self, interaction: discord.Interaction):
-        if not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar o AutoMensagem.", ephemeral=True)
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar o AutoMensagem.", ephemeral=True)
             return
         if not interaction.guild:
             await interaction.response.send_message("❌ Use este comando em um servidor.", ephemeral=True)
@@ -1034,8 +1029,8 @@ class AutoMensagem(commands.Cog):
 
     @automsg.command(name="limpar_painel", description="Fecha o painel do AutoMensagem.")
     async def limpar_painel(self, interaction: discord.Interaction):
-        if not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar o AutoMensagem.", ephemeral=True)
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar o AutoMensagem.", ephemeral=True)
             return
         await interaction.response.send_message("🧹 Painel fechado.", ephemeral=True)
 
@@ -1096,8 +1091,8 @@ class AutoMensagem(commands.Cog):
 
     @automsg.command(name="listar", description="Lista as AutoMensagens cadastradas.")
     async def listar(self, interaction: discord.Interaction):
-        if not is_owner(interaction.user):
-            await interaction.response.send_message("❌ Apenas o proprietário da Evelly pode usar o AutoMensagem.", ephemeral=True)
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message("❌ Apenas o proprietário ou um administrador autorizado pode usar o AutoMensagem.", ephemeral=True)
             return
         items = listar_auto_messages(interaction.guild.id)
         if not items:
