@@ -678,6 +678,8 @@ class Evelly(commands.Bot):
             "cogs.sugestao",
 
             "cogs.evelly",
+
+            "cogs.limpar",
         ]
 
 

@@ -8,6 +8,7 @@ from discord.ext import commands, tasks
 
 from database.database import (
     criar_auto_message,
+    listar_auto_messages,
     pegar_auto_messages_pendentes,
     pegar_auto_message,
     atualizar_auto_message,
@@ -549,6 +550,197 @@ class AutoMensagem(commands.Cog):
                 if mensagem_apagada
                 else "💬 Não havia mensagem vinculada para apagar."
             ),
+            ephemeral=True,
+        )
+
+    # =========================================================
+    # /AUTOMSG_LISTA
+    # =========================================================
+
+    @app_commands.command(
+        name="automsg_lista",
+        description="Lista e mostra os detalhes das AutoMensagens salvas.",
+    )
+    async def automsg_lista(
+        self,
+        interaction: discord.Interaction,
+    ):
+
+        if interaction.guild is None:
+            await interaction.response.send_message(
+                "❌ Este comando só pode ser usado em um servidor.",
+                ephemeral=True,
+            )
+            return
+
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message(
+                "❌ Você não possui permissão para gerenciar AutoMensagens.",
+                ephemeral=True,
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            registros = listar_auto_messages(
+                interaction.guild.id
+            ) or []
+
+        except Exception as erro:
+            print(
+                f"[AUTOMSG] Erro ao listar AutoMensagens: {erro}",
+                flush=True,
+            )
+
+            await interaction.followup.send(
+                "❌ Não consegui carregar as AutoMensagens salvas.",
+                ephemeral=True,
+            )
+            return
+
+        if not registros:
+            embed = discord.Embed(
+                title="📨 Evelly • AutoMensagens",
+                description=(
+                    "Nenhuma AutoMensagem foi encontrada neste servidor.\n\n"
+                    "Use `/automsg` para criar uma."
+                ),
+                color=DEFAULT_COLOR,
+            )
+
+            embed.set_footer(
+                text="Evelly • Gerenciamento de AutoMensagens"
+            )
+
+            await interaction.followup.send(
+                embed=embed,
+                ephemeral=True,
+            )
+            return
+
+        # Ordena pelo ID para facilitar a localização.
+        registros = sorted(
+            registros,
+            key=lambda item: int(item.get("id") or 0),
+        )
+
+        total = len(registros)
+
+        embed = discord.Embed(
+            title="📨 Evelly • Lista de AutoMensagens",
+            description=(
+                f"Existem **{total} automação(ões)** salvas neste servidor.\n"
+                "Use o **ID da automação** em `/automsg_deletar` quando precisar removê-la."
+            ),
+            color=DEFAULT_COLOR,
+        )
+
+        # O Discord possui limite de tamanho para embeds.
+        # Mostramos até 20 por página/execução para manter a lista legível.
+        limite = 20
+        exibidos = registros[:limite]
+
+        for item in exibidos:
+            auto_id = item.get("id", "N/A")
+            channel_id = item.get("channel_id")
+            message_id = item.get("message_id")
+
+            canal = (
+                f"<#{channel_id}>"
+                if channel_id
+                else "Canal não definido"
+            )
+
+            if item.get("enabled"):
+                status = "🟢 Ativa"
+            else:
+                status = "🔴 Desativada"
+
+            modo = str(
+                item.get("mode") or "history"
+            ).lower()
+
+            if modo == "update":
+                modo_texto = "🔄 Atualizar"
+            else:
+                modo_texto = "📚 Histórico"
+
+            intervalo = item.get(
+                "interval_days"
+            ) or 1
+
+            conteudo = str(
+                item.get("content") or ""
+            ).strip()
+
+            if not conteudo:
+                conteudo = "Sem mensagem definida."
+
+            conteudo = discord.utils.escape_markdown(
+                conteudo.replace("\n", " ")
+            )
+
+            if len(conteudo) > 120:
+                conteudo = conteudo[:117] + "..."
+
+            ultima = parse_dt(
+                item.get("last_sent_at")
+            )
+
+            proxima = parse_dt(
+                item.get("next_send_at")
+            )
+
+            ultima_texto = (
+                f"<t:{int(ultima.timestamp())}:f>"
+                if ultima
+                else "Nunca enviado"
+            )
+
+            proxima_texto = (
+                f"<t:{int(proxima.timestamp())}:R>"
+                if proxima
+                else "Não definida"
+            )
+
+            valor = (
+                f"**🆔 ID:** `{auto_id}`\n"
+                f"**📢 Canal:** {canal}\n"
+                f"**📊 Status:** {status}\n"
+                f"**⚙️ Modo:** {modo_texto}\n"
+                f"**⏱️ Intervalo:** `{intervalo} dia(s)`\n"
+                f"**💬 Mensagem ID:** `{message_id or 'N/A'}`\n"
+                f"**📤 Último envio:** {ultima_texto}\n"
+                f"**⏭️ Próximo envio:** {proxima_texto}\n"
+                f"**📝 Conteúdo:** {conteudo}"
+            )
+
+            embed.add_field(
+                name=f"📌 AutoMensagem #{auto_id}",
+                value=valor,
+                inline=False,
+            )
+
+        if total > limite:
+            embed.add_field(
+                name="📚 Mais automações",
+                value=(
+                    f"Existem mais **{total - limite}** automação(ões) "
+                    "salvas.\nA lista atual mostra as 20 primeiras por ID."
+                ),
+                inline=False,
+            )
+
+        embed.set_footer(
+            text=(
+                "Evelly • AutoMensagens • "
+                "Use /automsg_deletar id:<ID> para excluir"
+            )
+        )
+
+        await interaction.followup.send(
+            embed=embed,
             ephemeral=True,
         )
 
