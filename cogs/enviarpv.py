@@ -2,13 +2,18 @@
 # EVELLY • ENVIAR PV
 # ============================================================
 #
-# Comando:
-# /enviarpv usuario:@Pessoa mensagem:"Olá!"
+# Comandos:
 #
-# Envia uma mensagem privada através da Evelly.
+# /enviarpv usuario:@Pessoa mensagem:"Olá!"
+#     -> envia para uma única pessoa.
+#
+# /enviarpvtodos mensagem:"Olá, pessoal!"
+#     -> envia para os membros do servidor.
 #
 # ============================================================
 
+import asyncio
+import time
 import traceback
 
 import discord
@@ -21,6 +26,10 @@ from discord.ext import commands
 # ============================================================
 
 MAX_MESSAGE_LENGTH = 2000
+
+# Intervalo entre DMs no envio em massa.
+# Evita tentar enviar centenas de mensagens de uma vez.
+DM_DELAY = 1.0
 
 
 # ============================================================
@@ -61,8 +70,10 @@ class EnviarPVCog(commands.Cog):
             flush=True
         )
 
+
     # ========================================================
     # /ENVIARPV
+    # ENVIO INDIVIDUAL
     # ========================================================
 
     @app_commands.command(
@@ -81,16 +92,6 @@ class EnviarPVCog(commands.Cog):
     ):
 
         # ====================================================
-        # IMPORTANTE:
-        # NÃO fazemos response.send_message() imediatamente.
-        #
-        # O bot possui handlers globais e, dependendo de como
-        # a Interaction chegou, ela pode já ter sido reconhecida.
-        #
-        # Vamos trabalhar com uma função segura de resposta.
-        # ====================================================
-
-        # ====================================================
         # VERIFICAR SERVIDOR
         # ====================================================
 
@@ -102,6 +103,7 @@ class EnviarPVCog(commands.Cog):
             )
 
             return
+
 
         # ====================================================
         # VERIFICAR PERMISSÃO
@@ -116,6 +118,7 @@ class EnviarPVCog(commands.Cog):
 
             return
 
+
         # ====================================================
         # VERIFICAR BOT
         # ====================================================
@@ -128,6 +131,7 @@ class EnviarPVCog(commands.Cog):
             )
 
             return
+
 
         # ====================================================
         # LIMPAR MENSAGEM
@@ -143,6 +147,7 @@ class EnviarPVCog(commands.Cog):
             )
 
             return
+
 
         # ====================================================
         # LIMITE DO DISCORD
@@ -160,6 +165,7 @@ class EnviarPVCog(commands.Cog):
 
             return
 
+
         # ====================================================
         # IMPEDIR ENVIO PARA SI MESMO
         # ====================================================
@@ -173,8 +179,9 @@ class EnviarPVCog(commands.Cog):
 
             return
 
+
         # ====================================================
-        # AVISO DE PROCESSAMENTO
+        # AVISO
         # ====================================================
 
         await self.responder(
@@ -182,54 +189,20 @@ class EnviarPVCog(commands.Cog):
             "⏳ Enviando sua mensagem privada..."
         )
 
+
         # ====================================================
         # CRIAR EMBED
         # ====================================================
 
         try:
 
-            embed = discord.Embed(
-                description=mensagem,
-                timestamp=discord.utils.utcnow()
-            )
-
-            if self.bot.user:
-
-                embed.set_author(
-                    name="Evelly",
-                    icon_url=self.bot.user.display_avatar.url
-                )
-
-            embed.set_footer(
-                text="Mensagem enviada pela equipe."
-            )
+            embed = self.criar_embed(mensagem)
 
         except Exception as erro:
 
             print(
-                "==============================================",
-                flush=True
-            )
-
-            print(
-                "❌ [ENVIARPV] ERRO CRIANDO EMBED",
-                flush=True
-            )
-
-            print(
-                f"Tipo: {type(erro).__name__}",
-                flush=True
-            )
-
-            print(
-                f"Erro: {erro}",
-                flush=True
-            )
-
-            traceback.print_exc()
-
-            print(
-                "==============================================",
+                "❌ [ENVIARPV] Erro criando embed:",
+                erro,
                 flush=True
             )
 
@@ -239,6 +212,7 @@ class EnviarPVCog(commands.Cog):
             )
 
             return
+
 
         # ====================================================
         # ENVIAR DM
@@ -250,9 +224,6 @@ class EnviarPVCog(commands.Cog):
                 embed=embed
             )
 
-        # ====================================================
-        # DM BLOQUEADA
-        # ====================================================
 
         except discord.Forbidden:
 
@@ -262,41 +233,19 @@ class EnviarPVCog(commands.Cog):
                     f"❌ Não consegui enviar uma DM para "
                     f"**{usuario.display_name}**.\n\n"
                     "O usuário provavelmente bloqueou DMs "
-                    "de membros deste servidor ou possui "
-                    "alguma configuração que impede o recebimento."
+                    "ou possui alguma configuração que impede "
+                    "o recebimento."
                 )
             )
 
             print(
-                "==============================================",
-                flush=True
-            )
-
-            print(
-                "⚠️ [ENVIARPV] DM BLOQUEADA",
-                flush=True
-            )
-
-            print(
-                f"Usuário: {usuario}",
-                flush=True
-            )
-
-            print(
-                f"ID: {usuario.id}",
-                flush=True
-            )
-
-            print(
-                "==============================================",
+                f"⚠️ [ENVIARPV] DM bloqueada: {usuario} "
+                f"({usuario.id})",
                 flush=True
             )
 
             return
 
-        # ====================================================
-        # USUÁRIO NÃO ENCONTRADO
-        # ====================================================
 
         except discord.NotFound:
 
@@ -307,34 +256,12 @@ class EnviarPVCog(commands.Cog):
 
             return
 
-        # ====================================================
-        # ERRO HTTP
-        # ====================================================
 
         except discord.HTTPException as erro:
 
             print(
-                "==============================================",
-                flush=True
-            )
-
-            print(
-                "❌ [ENVIARPV] ERRO HTTP AO ENVIAR DM",
-                flush=True
-            )
-
-            print(
-                f"Status: {erro.status}",
-                flush=True
-            )
-
-            print(
-                f"Erro: {erro}",
-                flush=True
-            )
-
-            print(
-                "==============================================",
+                "❌ [ENVIARPV] Erro HTTP:",
+                erro,
                 flush=True
             )
 
@@ -345,38 +272,16 @@ class EnviarPVCog(commands.Cog):
 
             return
 
-        # ====================================================
-        # ERRO GERAL
-        # ====================================================
 
         except Exception as erro:
 
             print(
-                "==============================================",
-                flush=True
-            )
-
-            print(
-                "❌ [ENVIARPV] ERRO INESPERADO",
-                flush=True
-            )
-
-            print(
-                f"Tipo: {type(erro).__name__}",
-                flush=True
-            )
-
-            print(
-                f"Erro: {erro}",
+                "❌ [ENVIARPV] Erro inesperado:",
+                erro,
                 flush=True
             )
 
             traceback.print_exc()
-
-            print(
-                "==============================================",
-                flush=True
-            )
 
             await self.editar_resposta(
                 interaction,
@@ -384,6 +289,7 @@ class EnviarPVCog(commands.Cog):
             )
 
             return
+
 
         # ====================================================
         # SUCESSO
@@ -398,8 +304,9 @@ class EnviarPVCog(commands.Cog):
             )
         )
 
+
         # ====================================================
-        # LOG TERMINAL
+        # LOG
         # ====================================================
 
         print(
@@ -423,7 +330,7 @@ class EnviarPVCog(commands.Cog):
         )
 
         print(
-            f"🆔 ID destinatário: {usuario.id}",
+            f"🆔 ID: {usuario.id}",
             flush=True
         )
 
@@ -442,6 +349,353 @@ class EnviarPVCog(commands.Cog):
             flush=True
         )
 
+
+    # ========================================================
+    # /ENVIARPVTODOS
+    # ENVIO PARA TODOS OS MEMBROS
+    # ========================================================
+
+    @app_commands.command(
+        name="enviarpvtodos",
+        description="Envia uma mensagem privada para os membros do servidor."
+    )
+    @app_commands.describe(
+        mensagem="Mensagem que será enviada nas DMs."
+    )
+    async def enviarpvtodos(
+        self,
+        interaction: discord.Interaction,
+        mensagem: str
+    ):
+
+        # ====================================================
+        # VERIFICAR SERVIDOR
+        # ====================================================
+
+        if interaction.guild is None:
+
+            await self.responder(
+                interaction,
+                "❌ Este comando só pode ser usado dentro de um servidor."
+            )
+
+            return
+
+
+        # ====================================================
+        # PERMISSÃO
+        # ====================================================
+
+        if not pode_enviar_pv(interaction):
+
+            await self.responder(
+                interaction,
+                "❌ Você não possui permissão para usar este comando."
+            )
+
+            return
+
+
+        # ====================================================
+        # MENSAGEM
+        # ====================================================
+
+        mensagem = mensagem.strip()
+
+        if not mensagem:
+
+            await self.responder(
+                interaction,
+                "❌ A mensagem não pode estar vazia."
+            )
+
+            return
+
+
+        if len(mensagem) > MAX_MESSAGE_LENGTH:
+
+            await self.responder(
+                interaction,
+                (
+                    f"❌ A mensagem pode ter no máximo "
+                    f"**{MAX_MESSAGE_LENGTH} caracteres**."
+                )
+            )
+
+            return
+
+
+        # ====================================================
+        # CRIAR EMBED
+        # ====================================================
+
+        try:
+
+            embed = self.criar_embed(mensagem)
+
+        except Exception as erro:
+
+            print(
+                f"❌ [ENVIARPVTODOS] Erro criando embed: {erro}",
+                flush=True
+            )
+
+            await self.responder(
+                interaction,
+                "❌ Não consegui preparar a mensagem."
+            )
+
+            return
+
+
+        # ====================================================
+        # PEGAR MEMBROS
+        # ====================================================
+
+        membros = [
+            membro
+            for membro in interaction.guild.members
+            if not membro.bot
+        ]
+
+
+        total = len(membros)
+
+
+        if total == 0:
+
+            await self.responder(
+                interaction,
+                "❌ Não encontrei membros para enviar a mensagem."
+            )
+
+            return
+
+
+        # ====================================================
+        # CONFIRMAR INÍCIO
+        # ====================================================
+
+        await self.responder(
+            interaction,
+            (
+                "📨 **ENVIO DE PV INICIADO**\n\n"
+                f"👥 Membros encontrados: **{total}**\n"
+                "⏳ A Evelly está processando os envios...\n\n"
+                "⚠️ Usuários com DMs fechadas serão ignorados."
+            )
+        )
+
+
+        inicio = time.monotonic()
+
+
+        # ====================================================
+        # CONTADORES
+        # ====================================================
+
+        enviados = 0
+        bloqueados = 0
+        erros = 0
+
+
+        # ====================================================
+        # ENVIAR PARA CADA MEMBRO
+        # ====================================================
+
+        for indice, membro in enumerate(membros, start=1):
+
+            try:
+
+                await membro.send(
+                    embed=embed
+                )
+
+                enviados += 1
+
+
+            except discord.Forbidden:
+
+                bloqueados += 1
+
+
+            except discord.NotFound:
+
+                erros += 1
+
+
+            except discord.HTTPException as erro:
+
+                erros += 1
+
+                print(
+                    f"⚠️ [ENVIARPVTODOS] HTTP "
+                    f"{membro} ({membro.id}): {erro}",
+                    flush=True
+                )
+
+
+            except Exception as erro:
+
+                erros += 1
+
+                print(
+                    f"❌ [ENVIARPVTODOS] Erro "
+                    f"{membro} ({membro.id}): {erro}",
+                    flush=True
+                )
+
+
+            # ------------------------------------------------
+            # Pequeno intervalo entre mensagens.
+            # ------------------------------------------------
+
+            await asyncio.sleep(
+                DM_DELAY
+            )
+
+
+        # ====================================================
+        # TEMPO
+        # ====================================================
+
+        duracao = (
+            time.monotonic()
+            - inicio
+        )
+
+
+        minutos = int(
+            duracao // 60
+        )
+
+        segundos = int(
+            duracao % 60
+        )
+
+
+        # ====================================================
+        # RESULTADO
+        # ====================================================
+
+        resultado = (
+            "📨 **ENVIO DE PV CONCLUÍDO**\n\n"
+
+            f"👥 Total: **{total}**\n"
+
+            f"✅ Enviadas: **{enviados}**\n"
+
+            f"🔒 DMs fechadas: **{bloqueados}**\n"
+
+            f"❌ Erros: **{erros}**\n\n"
+
+            f"⏱️ Duração: "
+            f"**{minutos}m {segundos}s**"
+        )
+
+
+        await self.editar_resposta(
+            interaction,
+            resultado
+        )
+
+
+        # ====================================================
+        # LOG TERMINAL
+        # ====================================================
+
+        print(
+            "==============================================",
+            flush=True
+        )
+
+        print(
+            "📨 EVELLY • ENVIARPVTODOS",
+            flush=True
+        )
+
+        print(
+            f"👤 Executor: {interaction.user}",
+            flush=True
+        )
+
+        print(
+            f"🆔 Executor ID: {interaction.user.id}",
+            flush=True
+        )
+
+        print(
+            f"🏠 Servidor: {interaction.guild.name}",
+            flush=True
+        )
+
+        print(
+            f"🆔 Guild ID: {interaction.guild.id}",
+            flush=True
+        )
+
+        print(
+            f"👥 Total: {total}",
+            flush=True
+        )
+
+        print(
+            f"✅ Enviadas: {enviados}",
+            flush=True
+        )
+
+        print(
+            f"🔒 Bloqueadas: {bloqueados}",
+            flush=True
+        )
+
+        print(
+            f"❌ Erros: {erros}",
+            flush=True
+        )
+
+        print(
+            f"⏱️ Duração: {minutos}m {segundos}s",
+            flush=True
+        )
+
+        print(
+            "==============================================",
+            flush=True
+        )
+
+
+    # ========================================================
+    # CRIAR EMBED
+    # ========================================================
+
+    def criar_embed(
+        self,
+        mensagem: str
+    ) -> discord.Embed:
+
+        embed = discord.Embed(
+            description=mensagem,
+            timestamp=discord.utils.utcnow()
+        )
+
+
+        if self.bot.user:
+
+            embed.set_author(
+                name="Evelly",
+                icon_url=self.bot.user.display_avatar.url
+            )
+
+
+        embed.set_footer(
+            text="Mensagem enviada pela equipe."
+        )
+
+
+        return embed
+
+
     # ========================================================
     # SISTEMA SEGURO DE RESPOSTA
     # ========================================================
@@ -454,10 +708,6 @@ class EnviarPVCog(commands.Cog):
 
         try:
 
-            # ------------------------------------------------
-            # A Interaction ainda não foi reconhecida.
-            # ------------------------------------------------
-
             if not interaction.response.is_done():
 
                 await interaction.response.send_message(
@@ -467,27 +717,20 @@ class EnviarPVCog(commands.Cog):
 
                 return
 
-            # ------------------------------------------------
-            # A Interaction JÁ foi reconhecida.
-            #
-            # Nesse caso NÃO podemos usar:
-            #
-            # interaction.response.send_message()
-            #
-            # Usamos followup.
-            # ------------------------------------------------
 
             await interaction.followup.send(
                 texto,
                 ephemeral=True
             )
 
+
         except discord.InteractionResponded:
 
             print(
-                "⚠️ [ENVIARPV] Interaction já havia sido respondida.",
+                "⚠️ [ENVIARPV] Interaction já respondida.",
                 flush=True
             )
+
 
         except discord.NotFound:
 
@@ -496,12 +739,14 @@ class EnviarPVCog(commands.Cog):
                 flush=True
             )
 
+
         except discord.HTTPException as erro:
 
             print(
-                f"⚠️ [ENVIARPV] Erro HTTP ao responder: {erro}",
+                f"⚠️ [ENVIARPV] Erro HTTP: {erro}",
                 flush=True
             )
+
 
         except Exception as erro:
 
@@ -509,6 +754,7 @@ class EnviarPVCog(commands.Cog):
                 f"⚠️ [ENVIARPV] Erro ao responder: {erro}",
                 flush=True
             )
+
 
     # ========================================================
     # EDITAR RESPOSTA ORIGINAL
@@ -522,11 +768,6 @@ class EnviarPVCog(commands.Cog):
 
         try:
 
-            # ------------------------------------------------
-            # Se existe uma resposta original criada pela
-            # própria Interaction, tentamos editá-la.
-            # ------------------------------------------------
-
             if not interaction.response.is_done():
 
                 await interaction.response.send_message(
@@ -536,11 +777,6 @@ class EnviarPVCog(commands.Cog):
 
                 return
 
-            # ------------------------------------------------
-            # Interaction já respondida.
-            #
-            # Tentamos editar a resposta original.
-            # ------------------------------------------------
 
             try:
 
@@ -550,17 +786,14 @@ class EnviarPVCog(commands.Cog):
 
                 return
 
-            except discord.NotFound:
 
-                # ------------------------------------------------
-                # Caso não exista resposta original, enviamos
-                # um followup.
-                # ------------------------------------------------
+            except discord.NotFound:
 
                 await interaction.followup.send(
                     texto,
                     ephemeral=True
                 )
+
 
         except discord.InteractionResponded:
 
@@ -578,24 +811,27 @@ class EnviarPVCog(commands.Cog):
                     flush=True
                 )
 
+
         except discord.NotFound:
 
             print(
-                "⚠️ [ENVIARPV] Não foi possível editar/enviar resposta.",
+                "⚠️ [ENVIARPV] Resposta não encontrada.",
                 flush=True
             )
+
 
         except discord.HTTPException as erro:
 
             print(
-                f"⚠️ [ENVIARPV] Erro HTTP editando resposta: {erro}",
+                f"⚠️ [ENVIARPV] Erro HTTP: {erro}",
                 flush=True
             )
+
 
         except Exception as erro:
 
             print(
-                f"⚠️ [ENVIARPV] Erro inesperado editando resposta: {erro}",
+                f"⚠️ [ENVIARPV] Erro inesperado: {erro}",
                 flush=True
             )
 
@@ -604,7 +840,9 @@ class EnviarPVCog(commands.Cog):
 # SETUP
 # ============================================================
 
-async def setup(bot: commands.Bot):
+async def setup(
+    bot: commands.Bot
+):
 
     await bot.add_cog(
         EnviarPVCog(bot)
