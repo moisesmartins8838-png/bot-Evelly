@@ -14,7 +14,7 @@ from cogs.permissoes import pode_controlar_evelly
 
 PURPLE = 0x8E44AD
 
-TEMP_VOICE_MARKER = "EVELLY_TEMP_TICKET_CALL"
+TEMP_VOICE_MARKER = "🔊・atendimento-"
 TEMP_VOICE_GRACE_SECONDS = 60
 
 
@@ -552,6 +552,49 @@ async def send_transcript_dm(member: discord.Member, ticket: dict, transcript: b
         ),
     )
 
+async def delete_ticket_temp_voice_channel(guild: discord.Guild, ticket_id):
+    """
+    Remove todas as calls temporárias deste ticket.
+    A identificação é feita pelo nome:
+    🔊・atendimento-<ticket_id>-<timestamp>
+    """
+    if guild is None or ticket_id is None:
+        return 0
+
+    prefix = f"{TEMP_VOICE_MARKER}{ticket_id}-"
+    removed = 0
+
+    for channel in list(guild.voice_channels):
+        if not channel.name.startswith(prefix):
+            continue
+
+        try:
+            await channel.delete(
+                reason=f"Evelly • Call removida ao fechar ticket #{ticket_id}"
+            )
+            removed += 1
+            print(
+                f"[TICKET] Call removida ao fechar ticket: "
+                f"{guild.name} / {channel.name}",
+                flush=True,
+            )
+        except discord.NotFound:
+            removed += 1
+        except discord.Forbidden as e:
+            print(
+                f"[TICKET] Sem permissão para remover call: "
+                f"{guild.name} / {channel.name} | {e}",
+                flush=True,
+            )
+        except discord.HTTPException as e:
+            print(
+                f"[TICKET] Erro removendo call ao fechar ticket: {e}",
+                flush=True,
+            )
+
+    return removed
+
+
 class TicketCategorySelect(discord.ui.Select):
     def __init__(self, cog, categories):
         self.cog = cog
@@ -807,125 +850,136 @@ class TicketActionsView(discord.ui.View):
         interaction: discord.Interaction,
         button: discord.ui.Button,
     ):
-        permitido, cfg = await self._is_staff(interaction)
-
-        if not permitido:
-            await interaction.response.send_message(
-                "❌ Apenas o cargo da equipe configurado nos tickets "
-                "pode criar uma call.",
-                ephemeral=True,
-            )
-            return
-
-        ticket = await self._get_ticket(interaction)
-
-        if not ticket:
-            await interaction.response.send_message(
-                "❌ Não consegui localizar este ticket.",
-                ephemeral=True,
-            )
-            return
-
-        guild = interaction.guild
-        if guild is None:
-            await interaction.response.send_message(
-                "❌ Este botão só pode ser usado dentro de um servidor.",
-                ephemeral=True,
-            )
-            return
-
-        ticket_id = ticket.get("id", interaction.channel.id)
-
-        # Evita criar várias calls para o mesmo ticket.
-        existing_call = discord.utils.find(
-            lambda channel: (
-                isinstance(channel, discord.VoiceChannel)
-                and channel.topic
-                and f"{TEMP_VOICE_MARKER}:{ticket_id}" in channel.topic
-            ),
-            guild.channels,
-        )
-
-        if existing_call:
-            await interaction.response.send_message(
-                f"🔊 A call deste ticket já existe: {existing_call.mention}",
-                ephemeral=True,
-            )
-            return
-
-        category = None
-
-        if cfg:
-            category = guild.get_channel(int(cfg["category_id"]))
-
-        if not isinstance(category, discord.CategoryChannel):
-            category = interaction.channel.category
-
-        staff_role = None
-
-        if cfg and cfg.get("staff_role_id"):
-            staff_role = guild.get_role(int(cfg["staff_role_id"]))
-
-        if not staff_role:
-            await interaction.response.send_message(
-                "❌ O cargo da equipe configurado nos tickets não existe mais.",
-                ephemeral=True,
-            )
-            return
-
-        ticket_user = guild.get_member(int(ticket["user_id"]))
-
-        if not ticket_user:
-            await interaction.response.send_message(
-                "❌ O usuário deste ticket não está mais no servidor.",
-                ephemeral=True,
-            )
-            return
-
-        bot_member = guild.me
-
-        if bot_member is None:
-            await interaction.response.send_message(
-                "❌ Não consegui identificar a Evelly no servidor.",
-                ephemeral=True,
-            )
-            return
-
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(
-                view_channel=False,
-                connect=False,
-            ),
-            staff_role: discord.PermissionOverwrite(
-                view_channel=True,
-                connect=True,
-                speak=True,
-                stream=True,
-                use_voice_activation=True,
-            ),
-            ticket_user: discord.PermissionOverwrite(
-                view_channel=True,
-                connect=True,
-                speak=True,
-                stream=True,
-                use_voice_activation=True,
-            ),
-            bot_member: discord.PermissionOverwrite(
-                view_channel=True,
-                connect=True,
-                speak=True,
-                manage_channels=True,
-            ),
-        }
-
+        # Reconhece a interação imediatamente. Consultas ao Supabase e
+        # criação do canal podem levar mais de 3 segundos.
         await interaction.response.defer(ephemeral=True)
 
         try:
+            permitido, cfg = await self._is_staff(interaction)
+
+            if not permitido:
+                await interaction.followup.send(
+                    "❌ Apenas o cargo da equipe configurado nos tickets "
+                    "pode criar uma call.",
+                    ephemeral=True,
+                )
+                return
+
+            ticket = await self._get_ticket(interaction)
+
+            if not ticket:
+                await interaction.followup.send(
+                    "❌ Não consegui localizar este ticket.",
+                    ephemeral=True,
+                )
+                return
+
+            guild = interaction.guild
+            if guild is None:
+                await interaction.followup.send(
+                    "❌ Este botão só pode ser usado dentro de um servidor.",
+                    ephemeral=True,
+                )
+                return
+
+            ticket_id = ticket.get("id", interaction.channel.id)
+
+            # Evita criar várias calls para o mesmo ticket.
+            existing_call = discord.utils.find(
+                lambda channel: (
+                    isinstance(channel, discord.VoiceChannel)
+                    and channel.name.startswith(
+                        f"{TEMP_VOICE_MARKER}{ticket_id}-"
+                    )
+                ),
+                guild.channels,
+            )
+
+            if existing_call:
+                await interaction.followup.send(
+                    f"🔊 A call deste ticket já existe: {existing_call.mention}",
+                    ephemeral=True,
+                )
+                return
+
+            category = None
+
+            if cfg:
+                try:
+                    category = guild.get_channel(int(cfg["category_id"]))
+                except (TypeError, ValueError, KeyError):
+                    category = None
+
+            if not isinstance(category, discord.CategoryChannel):
+                category = interaction.channel.category
+
+            staff_role = None
+
+            if cfg and cfg.get("staff_role_id"):
+                try:
+                    staff_role = guild.get_role(int(cfg["staff_role_id"]))
+                except (TypeError, ValueError):
+                    staff_role = None
+
+            if not staff_role:
+                await interaction.followup.send(
+                    "❌ O cargo da equipe configurado nos tickets não existe mais.",
+                    ephemeral=True,
+                )
+                return
+
+            try:
+                ticket_user = guild.get_member(int(ticket["user_id"]))
+            except (TypeError, ValueError, KeyError):
+                ticket_user = None
+
+            if not ticket_user:
+                await interaction.followup.send(
+                    "❌ O usuário deste ticket não está mais no servidor.",
+                    ephemeral=True,
+                )
+                return
+
+            bot_member = guild.me
+
+            if bot_member is None:
+                await interaction.followup.send(
+                    "❌ Não consegui identificar a Evelly no servidor.",
+                    ephemeral=True,
+                )
+                return
+
+            overwrites = {
+                guild.default_role: discord.PermissionOverwrite(
+                    view_channel=False,
+                    connect=False,
+                ),
+                staff_role: discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    stream=True,
+                    use_voice_activation=True,
+                ),
+                ticket_user: discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    stream=True,
+                    use_voice_activation=True,
+                ),
+                bot_member: discord.PermissionOverwrite(
+                    view_channel=True,
+                    connect=True,
+                    speak=True,
+                    manage_channels=True,
+                ),
+            }
+
             voice_channel = await guild.create_voice_channel(
-                name=f"🔊・atendimento-{ticket_id}",
+                name=f"🔊・atendimento-{ticket_id}-{int(time.time())}",
                 category=category,
                 overwrites=overwrites,
-                topic=f"{TEMP_VOICE_MARKER}:{ticket_id}:{int(time.time())}",
                 reason=f"Evelly • Call temporária do ticket #{ticket_id}",
             )
 
@@ -943,8 +997,8 @@ class TicketActionsView(discord.ui.View):
                     f"{voice_channel.mention}",
                     allowed_mentions=discord.AllowedMentions(users=True),
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[TICKET] Aviso no ticket não enviado: {e}", flush=True)
 
         except discord.Forbidden:
             await interaction.followup.send(
@@ -962,7 +1016,7 @@ class TicketActionsView(discord.ui.View):
         except Exception as e:
             print(f"[TICKET] Create voice error: {e}", flush=True)
             await interaction.followup.send(
-                "❌ Ocorreu um erro ao criar a call.",
+                "❌ Ocorreu um erro ao criar a call. Verifique o console da Evelly.",
                 ephemeral=True,
             )
 
@@ -1006,6 +1060,13 @@ class TicketActionsView(discord.ui.View):
                     print(f"[TICKET] Transcript DM error: {e}", flush=True)
 
             close_ticket_db(interaction.channel.id, interaction.user.id)
+
+            # Remove a call temporária imediatamente ao fechar o ticket.
+            ticket_id = ticket.get("id", interaction.channel.id)
+            await delete_ticket_temp_voice_channel(
+                interaction.guild,
+                ticket_id,
+            )
 
             if dm_ok:
                 await interaction.channel.send(
@@ -1551,13 +1612,11 @@ class Ticket(commands.Cog):
 
         for guild in self.bot.guilds:
             for channel in list(guild.voice_channels):
-                topic = channel.topic or ""
-
-                if not topic.startswith(TEMP_VOICE_MARKER + ":"):
+                if not channel.name.startswith(TEMP_VOICE_MARKER):
                     continue
 
                 try:
-                    partes = topic.split(":")
+                    partes = channel.name.rsplit("-", 1)
                     criado_em = int(partes[-1])
                 except (ValueError, IndexError):
                     criado_em = agora
@@ -1597,6 +1656,49 @@ class Ticket(commands.Cog):
 
 
 # Método auxiliar para fechar via comando, compartilhando a mesma rotina do botão.
+async def delete_ticket_temp_voice_channel(guild: discord.Guild, ticket_id):
+    """
+    Remove imediatamente a call temporária vinculada ao ticket.
+    Não depende de VoiceChannel.topic; usa o nome da call.
+    """
+    if guild is None or ticket_id is None:
+        return False
+
+    prefix = f"{TEMP_VOICE_MARKER}{ticket_id}-"
+
+    for channel in list(guild.voice_channels):
+        if not channel.name.startswith(prefix):
+            continue
+
+        try:
+            await channel.delete(
+                reason=f"Evelly • Call removida com o fechamento do ticket #{ticket_id}"
+            )
+            print(
+                f"[TICKET] Call temporária removida ao fechar ticket: "
+                f"{guild.name} / {channel.name}",
+                flush=True,
+            )
+            return True
+        except discord.NotFound:
+            return True
+        except discord.Forbidden:
+            print(
+                f"[TICKET] Sem permissão para remover call ao fechar ticket: "
+                f"{guild.name} / {channel.name}",
+                flush=True,
+            )
+            return False
+        except discord.HTTPException as e:
+            print(
+                f"[TICKET] Erro removendo call ao fechar ticket: {e}",
+                flush=True,
+            )
+            return False
+
+    return False
+
+
 async def _close_ticket_from_command(self, interaction):
     ticket = get_ticket_by_channel(interaction.channel.id)
     if not ticket:
@@ -1615,6 +1717,13 @@ async def _close_ticket_from_command(self, interaction):
                 print(f"[TICKET] Transcript DM error: {e}", flush=True)
 
         close_ticket_db(interaction.channel.id, interaction.user.id)
+
+        # Remove a call temporária imediatamente ao fechar o ticket.
+        ticket_id = ticket.get("id", interaction.channel.id)
+        await delete_ticket_temp_voice_channel(
+            interaction.guild,
+            ticket_id,
+        )
 
         await interaction.channel.send(
             "📄 Log gerada e enviada no privado do cliente."
