@@ -160,6 +160,41 @@ class YouTubePanelView(View):
             return
         await interaction.response.send_modal(YouTubeConfigModal(self.cog))
 
+    @discord.ui.button(label="📝 Mensagens", style=discord.ButtonStyle.secondary)
+    async def mensagens(self, interaction: discord.Interaction, button: Button):
+        if not staff_ok(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ter **Gerenciar Servidor**.",
+                ephemeral=True,
+            )
+            return
+
+        config = pegar_config(interaction.guild.id) or {}
+        embed = discord.Embed(
+            title="📝 Mensagens do YouTube",
+            description=(
+                "Configure separadamente vídeos e lives.\n\n"
+                "Placeholders: `{titulo}` `{canal}` `{url}` "
+                "`{descricao}` `{video_id}`"
+            ),
+            color=discord.Color.red(),
+        )
+        embed.add_field(
+            name="📺 Vídeos",
+            value=(config.get("video_message") or "Padrão do sistema")[:1024],
+            inline=False,
+        )
+        embed.add_field(
+            name="🔴 Lives",
+            value=(config.get("live_message") or "Padrão do sistema")[:1024],
+            inline=False,
+        )
+        await interaction.response.send_message(
+            embed=embed,
+            view=YouTubeMessagesView(self.cog),
+            ephemeral=True,
+        )
+
     @discord.ui.button(label="🧪 Testar", style=discord.ButtonStyle.success)
     async def testar(self, interaction: discord.Interaction, button: Button):
         if not staff_ok(interaction):
@@ -236,6 +271,70 @@ class YouTubeTestView(View):
         await interaction.response.defer(ephemeral=True)
         await self.cog.enviar_teste(interaction.guild, "live")
         await interaction.followup.send("✅ Teste de live enviado.", ephemeral=True)
+
+
+
+class YouTubeMessageModal(Modal):
+    def __init__(self, cog, tipo):
+        self.cog = cog
+        self.tipo = tipo
+        titulo = "Mensagem de vídeo" if tipo == "video" else "Mensagem de LIVE"
+        super().__init__(title=titulo)
+
+        self.mensagem = TextInput(
+            label="Mensagem para vídeos" if tipo == "video" else "Mensagem para lives",
+            placeholder=(
+                "Use {titulo}, {canal}, {url}, {descricao}, {video_id}"
+            ),
+            required=False,
+            max_length=4000,
+            style=discord.TextStyle.paragraph,
+        )
+        self.add_item(self.mensagem)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        if not staff_ok(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ter **Gerenciar Servidor**.",
+                ephemeral=True,
+            )
+            return
+
+        valor = str(self.mensagem.value).strip()
+        chave = "video_message" if self.tipo == "video" else "live_message"
+        salvar_config(interaction.guild.id, **{chave: valor or None})
+
+        tipo_nome = "vídeo" if self.tipo == "video" else "LIVE"
+        await interaction.response.send_message(
+            f"✅ Mensagem de {tipo_nome} atualizada.",
+            ephemeral=True,
+        )
+
+
+class YouTubeMessagesView(View):
+    def __init__(self, cog):
+        super().__init__(timeout=180)
+        self.cog = cog
+
+    @discord.ui.button(label="📺 Mensagem de vídeo", style=discord.ButtonStyle.primary)
+    async def video(self, interaction: discord.Interaction, button: Button):
+        if not staff_ok(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ter **Gerenciar Servidor**.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_modal(YouTubeMessageModal(self.cog, "video"))
+
+    @discord.ui.button(label="🔴 Mensagem de live", style=discord.ButtonStyle.danger)
+    async def live(self, interaction: discord.Interaction, button: Button):
+        if not staff_ok(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ter **Gerenciar Servidor**.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_modal(YouTubeMessageModal(self.cog, "live"))
 
 
 class YouTubeConfigModal(Modal, title="Configuração de notificações"):
@@ -471,6 +570,21 @@ class YouTube(commands.Cog):
     def canal_url(self, youtube_id):
         return f"https://www.youtube.com/channel/{youtube_id}"
 
+    def formatar_mensagem(self, template, *, titulo, canal, url, descricao="", video_id=""):
+        if not template:
+            return ""
+        valores = {
+            "{titulo}": titulo or "",
+            "{canal}": canal or "",
+            "{url}": url or "",
+            "{descricao}": descricao or "",
+            "{video_id}": video_id or "",
+        }
+        mensagem = str(template)
+        for chave, valor in valores.items():
+            mensagem = mensagem.replace(chave, str(valor))
+        return mensagem.strip()
+
     async def anunciar_video(self, guild_id, youtube_id, nome, video_id):
         guild = self.bot.get_guild(guild_id)
         if not guild:
@@ -509,14 +623,25 @@ class YouTube(commands.Cog):
         embed.add_field(name="▶️ Vídeo", value=f"[Assistir no YouTube]({url})", inline=True)
         embed.set_footer(text="Evelly LN • YouTube")
 
-        content = ""
+        mensagem = self.formatar_mensagem(
+            config.get("video_message"),
+            titulo=title,
+            canal=nome,
+            url=url,
+            descricao=desc,
+            video_id=video_id,
+        )
+
+        content_parts = []
         if role_id:
             role = guild.get_role(int(role_id))
             if role:
-                content = role.mention
+                content_parts.append(role.mention)
+        if mensagem:
+            content_parts.append(mensagem)
 
         await channel.send(
-            content=content or None,
+            content="\\n".join(content_parts) or None,
             embed=embed,
             view=YouTubeVideoView(url, self.canal_url(youtube_id)),
         )
@@ -557,14 +682,25 @@ class YouTube(commands.Cog):
         embed.add_field(name="▶️ Transmissão", value=f"[Assistir LIVE]({url})", inline=True)
         embed.set_footer(text="Evelly LN • Live Notifications")
 
-        content = ""
+        mensagem = self.formatar_mensagem(
+            config.get("live_message"),
+            titulo=live.get("titulo", "Live"),
+            canal=nome,
+            url=url,
+            descricao=live.get("descricao", ""),
+            video_id=live.get("video_id", ""),
+        )
+
+        content_parts = []
         if role_id:
             role = guild.get_role(int(role_id))
             if role:
-                content = role.mention
+                content_parts.append(role.mention)
+        if mensagem:
+            content_parts.append(mensagem)
 
         await channel.send(
-            content=content or None,
+            content="\\n".join(content_parts) or None,
             embed=embed,
             view=YouTubeLiveView(url, self.canal_url(youtube_id)),
         )
@@ -742,21 +878,71 @@ class YouTube(commands.Cog):
         if not channel:
             return
 
+        teste_url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        titulo = "Live de teste da Evelly" if tipo == "live" else "Novo vídeo — TESTE"
+        descricao = (
+            "Esta é uma transmissão ao vivo de teste."
+            if tipo == "live"
+            else "Esta é uma notificação de vídeo de teste."
+        )
+        video_id = "TESTE"
+
         if tipo == "live":
             embed = discord.Embed(
                 title="🔴 ESTÁ AO VIVO AGORA!",
-                description="📺 **Canal de teste**\n\n🎥 **Live de teste da Evelly**",
+                description="📺 **Canal de teste**\\n\\n🎥 **Live de teste da Evelly**",
                 color=discord.Color.dark_red(),
+                url=teste_url,
             )
             embed.add_field(name="🔴 Status", value="**AO VIVO**")
-            await channel.send(embed=embed)
+            embed.add_field(
+                name="▶️ Transmissão",
+                value=f"[Assistir LIVE]({teste_url})",
+                inline=True,
+            )
+            mensagem = self.formatar_mensagem(
+                config.get("live_message"),
+                titulo=titulo,
+                canal="Canal de teste",
+                url=teste_url,
+                descricao=descricao,
+                video_id=video_id,
+            )
+            role_id = config.get("live_role_id")
         else:
             embed = discord.Embed(
                 title="🎬 Novo vídeo — TESTE",
-                description="📺 **Canal de teste**\n\nEsta é uma notificação de vídeo de teste.",
+                description="📺 **Canal de teste**\\n\\nEsta é uma notificação de vídeo de teste.",
                 color=discord.Color.red(),
+                url=teste_url,
             )
-            await channel.send(embed=embed)
+            embed.add_field(
+                name="▶️ Vídeo",
+                value=f"[Assistir no YouTube]({teste_url})",
+                inline=True,
+            )
+            mensagem = self.formatar_mensagem(
+                config.get("video_message"),
+                titulo=titulo,
+                canal="Canal de teste",
+                url=teste_url,
+                descricao=descricao,
+                video_id=video_id,
+            )
+            role_id = config.get("video_role_id")
+
+        content_parts = []
+        if role_id:
+            role = guild.get_role(int(role_id))
+            if role:
+                content_parts.append(role.mention)
+        if mensagem:
+            content_parts.append(mensagem)
+
+        await channel.send(
+            content="\\n".join(content_parts) or None,
+            embed=embed,
+        )
 
     @youtube.command(name="painel", description="Abre o painel de configuração do YouTube.")
     async def painel(self, interaction: discord.Interaction):
@@ -795,6 +981,14 @@ class YouTube(commands.Cog):
         embed.add_field(
             name="🔴 Canal de lives",
             value=f"<#{config['live_channel_id']}>" if config.get("live_channel_id") else "Mesmo canal de vídeos",
+            inline=False,
+        )
+        embed.add_field(
+            name="📝 Mensagens",
+            value=(
+                f"📺 Vídeo: {'Personalizada' if config.get('video_message') else 'Padrão'}\\n"
+                f"🔴 Live: {'Personalizada' if config.get('live_message') else 'Padrão'}"
+            ),
             inline=False,
         )
         embed.set_footer(text="Evelly LN • YouTube & Streaming")
