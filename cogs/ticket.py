@@ -917,6 +917,7 @@ class TicketActionsView(discord.ui.View):
 
             if cfg and cfg.get("staff_role_id"):
                 try:
+                    guild = interaction.guild
                     staff_role = guild.get_role(int(cfg["staff_role_id"]))
                 except (TypeError, ValueError):
                     staff_role = None
@@ -1228,6 +1229,9 @@ class Ticket(commands.Cog):
             )
             return
 
+        # Reconhece a interação imediatamente para evitar timeout do Discord.
+        await interaction.response.defer(ephemeral=True)
+
         cfg = cfg_ticket(interaction.guild.id)
         if not cfg:
             await interaction.response.send_message(
@@ -1238,6 +1242,7 @@ class Ticket(commands.Cog):
 
         categories = seed_default_categories(interaction.guild.id)
 
+        guild = interaction.guild
         staff_role = guild.get_role(int(cfg["staff_role_id"]))
         panel_description = render_panel_message(
             cfg.get("panel_message"),
@@ -1276,7 +1281,7 @@ class Ticket(commands.Cog):
             cfg.get("panel_message"),
         )
 
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"✅ Painel de tickets publicado em {canal.mention}.",
             ephemeral=True,
         )
