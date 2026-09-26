@@ -680,6 +680,8 @@ class Evelly(commands.Bot):
             "cogs.evelly",
 
             "cogs.limpar",
+
+            "cogs.atualizacoes",
         ]
 
 

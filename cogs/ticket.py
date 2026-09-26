@@ -1,51 +1,16 @@
 import asyncio
 import io
 import re
-from html import escape as html_escape
-import time
 from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
-from discord.ext import commands, tasks
+from discord.ext import commands
 
 from database.database import supabase
 from cogs.permissoes import pode_controlar_evelly
 
 PURPLE = 0x8E44AD
-
-TEMP_VOICE_MARKER = "🔊・atendimento-"
-TEMP_VOICE_GRACE_SECONDS = 60
-
-
-def parse_ticket_emoji(value):
-    """
-    Aceita:
-    - emoji Unicode: 🎫
-    - emoji personalizado estático: <:nome:id>
-    - emoji personalizado animado: <a:nome:id>
-    """
-    if value is None:
-        return "🎫"
-
-    value = str(value).strip()
-
-    if not value:
-        return "🎫"
-
-    if value.startswith("<") and value.endswith(">"):
-        try:
-            parsed = discord.PartialEmoji.from_str(value)
-            if parsed.id:
-                return parsed
-        except Exception as e:
-            print(
-                f"[TICKET] Emoji personalizado inválido: {value} | {e}",
-                flush=True,
-            )
-
-    return value
-
 
 
 def is_staff(member: discord.Member, role_id: int | None) -> bool:
@@ -84,6 +49,59 @@ def save_ticket_cfg(guild_id, category_id, staff_role_id, panel_channel_id=None)
     except Exception as e:
         print(f"[TICKET] Save config error: {e}", flush=True)
         return False
+
+
+def get_ticket_message(guild_id):
+    """Retorna a mensagem personalizada do ticket ou a mensagem padrão."""
+    default = (
+        "Olá, {user}!\n\n"
+        "Seu atendimento foi criado com sucesso.\n"
+        "Aguarde um atendente reivindicar seu ticket."
+    )
+    try:
+        r = (
+            supabase.table("evelly_ticket_config")
+            .select("ticket_message")
+            .eq("guild_id", int(guild_id))
+            .limit(1)
+            .execute()
+        )
+        if r.data and r.data[0].get("ticket_message"):
+            return str(r.data[0]["ticket_message"])[:4000]
+    except Exception as e:
+        # Compatibilidade caso a coluna ainda não tenha sido criada.
+        print(f"[TICKET] Custom message read error: {e}", flush=True)
+    return default
+
+
+def save_ticket_message(guild_id, message):
+    try:
+        supabase.table("evelly_ticket_config").update({
+            "ticket_message": str(message)[:4000],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("guild_id", int(guild_id)).execute()
+        return True
+    except Exception as e:
+        print(f"[TICKET] Custom message save error: {e}", flush=True)
+        return False
+
+
+def render_ticket_message(template, interaction, ticket_id, category_cfg, staff_role):
+    """Substitui placeholders permitidos na mensagem personalizada."""
+    replacements = {
+        "{user}": interaction.user.mention,
+        "{user_name}": interaction.user.display_name,
+        "{user_id}": str(interaction.user.id),
+        "{ticket_id}": str(ticket_id),
+        "{categoria}": str(category_cfg.get("label") or category_cfg.get("key") or "Atendimento"),
+        "{categoria_key}": str(category_cfg.get("key") or ""),
+        "{staff}": staff_role.mention if staff_role else "Equipe",
+        "{servidor}": interaction.guild.name if interaction.guild else "Servidor",
+    }
+    result = str(template)
+    for key, value in replacements.items():
+        result = result.replace(key, value)
+    return result[:4000]
 
 
 def create_ticket_db(guild_id, channel_id, user_id, category):
@@ -169,7 +187,7 @@ def seed_default_categories(guild_id):
             "key": key,
             "label": label,
             "description": description,
-            "emoji": str(emoji).strip(),
+            "emoji": emoji,
             "position": position,
             "enabled": True,
         } for key, label, description, emoji, position in defaults]
@@ -239,360 +257,71 @@ def clean_text(value):
 
 
 async def generate_transcript(channel: discord.TextChannel, ticket: dict):
-    # Gera um transcript HTML organizado e visual.
-    generated_at = datetime.now(timezone.utc)
-    messages_html = []
-    message_count = 0
+    lines = []
+    lines.append("=" * 70)
+    lines.append("EVELLY • TRANSCRIPT DO TICKET")
+    lines.append("=" * 70)
+    lines.append(f"Servidor: {channel.guild.name} ({channel.guild.id})")
+    lines.append(f"Canal: #{channel.name} ({channel.id})")
+    lines.append(f"Usuário: {ticket.get('user_id')}")
+    lines.append(f"Categoria: {ticket.get('category')}")
+    lines.append(f"Gerado em: {datetime.now(timezone.utc).isoformat()}")
+    lines.append("=" * 70)
+    lines.append("")
 
     async for message in channel.history(limit=None, oldest_first=True):
-        message_count += 1
-        created = message.created_at.astimezone(timezone.utc)
-        created_text = created.strftime("%d/%m/%Y às %H:%M:%S UTC")
-
-        author_name = html_escape(str(message.author))
-        author_id = html_escape(str(message.author.id))
-
-        try:
-            avatar_url = html_escape(
-                str(message.author.display_avatar.url),
-                quote=True
-            )
-            author_avatar = f'<img class="avatar" src="{avatar_url}" alt="Avatar">'
-        except Exception:
-            author_avatar = '<div class="avatar fallback">E</div>'
-
-        body_parts = []
-
+        created = message.created_at.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        author = f"{message.author} ({message.author.id})"
         content = clean_text(message.content)
+
+        lines.append(f"[{created}] {author}")
         if content:
-            body_parts.append(
-                f'<div class="message-content">{html_escape(content)}</div>'
-            )
+            lines.append(content)
 
         if message.attachments:
-            items = []
             for attachment in message.attachments:
-                filename = html_escape(attachment.filename)
-                url = html_escape(attachment.url, quote=True)
-                items.append(
-                    f'''
-                    <a class="attachment" href="{url}" target="_blank" rel="noopener">
-                        <span class="attachment-icon">📎</span>
-                        <span>
-                            <strong>{filename}</strong>
-                            <small>Abrir anexo</small>
-                        </span>
-                    </a>
-                    '''
-                )
-
-            body_parts.append(
-                '<div class="attachments">' + "".join(items) + '</div>'
-            )
+                lines.append(f"[Anexo] {attachment.filename} — {attachment.url}")
 
         if message.embeds:
-            embeds = []
-
             for embed in message.embeds:
-                title = html_escape(embed.title or "Embed")
-                description = html_escape(
-                    clean_text(embed.description)
-                    if embed.description
-                    else ""
-                )
+                if embed.title:
+                    lines.append(f"[Embed] {embed.title}")
+                if embed.description:
+                    lines.append(clean_text(embed.description))
 
-                link = ""
-                if embed.url:
-                    safe_url = html_escape(embed.url, quote=True)
-                    link = (
-                        f'<a href="{safe_url}" target="_blank" '
-                        f'rel="noopener">Abrir link ↗</a>'
-                    )
+        lines.append("-" * 70)
 
-                embeds.append(
-                    f'''
-                    <div class="discord-embed">
-                        <div class="embed-title">▌ {title}</div>
-                        {f'<div class="embed-description">{description}</div>' if description else ''}
-                        {link}
-                    </div>
-                    '''
-                )
-
-            body_parts.append(
-                '<div class="embeds">' + "".join(embeds) + '</div>'
-            )
-
-        if message.reference and message.reference.message_id:
-            body_parts.insert(
-                0,
-                (
-                    '<div class="reply-reference">'
-                    f'↪ Resposta à mensagem '
-                    f'<code>{message.reference.message_id}</code>'
-                    '</div>'
-                )
-            )
-
-        if not body_parts:
-            body_parts.append(
-                '<div class="message-content empty">Mensagem sem texto.</div>'
-            )
-
-        messages_html.append(
-            f'''
-            <article class="message">
-                {author_avatar}
-                <div class="message-main">
-                    <div class="message-header">
-                        <span class="author">{author_name}</span>
-                        <span class="author-id">ID {author_id}</span>
-                        <time>{created_text}</time>
-                    </div>
-                    <div class="message-body">
-                        {''.join(body_parts)}
-                    </div>
-                </div>
-            </article>
-            '''
-        )
-
-    server_name = html_escape(channel.guild.name)
-    server_id = html_escape(str(channel.guild.id))
-    channel_name = html_escape(channel.name)
-    channel_id = html_escape(str(channel.id))
-    user_id = html_escape(str(ticket.get("user_id", "N/A")))
-    category = html_escape(str(ticket.get("category", "atendimento")))
-    ticket_id = html_escape(str(ticket.get("id", "N/A")))
-
-    html_document = f'''
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Evelly • Ticket #{ticket_id}</title>
-<style>
-* {{ box-sizing: border-box; }}
-body {{
-    margin: 0; padding: 32px 18px;
-    background: #111318; color: #e8e9ed;
-    font-family: Inter, Segoe UI, Arial, sans-serif;
-    line-height: 1.55;
-}}
-.container {{ max-width: 980px; margin: 0 auto; }}
-.header {{
-    background: linear-gradient(135deg, #2b1640, #171922);
-    border: 1px solid #4d286d; border-radius: 18px;
-    padding: 28px; box-shadow: 0 12px 40px rgba(0,0,0,.28);
-    margin-bottom: 18px;
-}}
-.brand {{ display:flex; align-items:center; gap:12px; margin-bottom:22px; }}
-.brand-icon {{
-    width:48px; height:48px; border-radius:14px;
-    display:flex; align-items:center; justify-content:center;
-    background:#8e44ad; font-size:25px;
-}}
-.brand-title {{ font-size:24px; font-weight:800; }}
-.brand-subtitle {{ color:#aaaebb; font-size:13px; }}
-.title {{ font-size:30px; font-weight:800; margin:0 0 6px; }}
-.subtitle {{ color:#aeb2c0; margin:0; }}
-.stats {{
-    display:grid; grid-template-columns:repeat(4,1fr);
-    gap:10px; margin-top:22px;
-}}
-.stat {{
-    background:rgba(255,255,255,.045);
-    border:1px solid rgba(255,255,255,.08);
-    border-radius:12px; padding:13px;
-}}
-.stat-label {{
-    display:block; color:#9297a6; font-size:11px;
-    text-transform:uppercase; letter-spacing:.7px; margin-bottom:4px;
-}}
-.stat-value {{ font-weight:700; word-break:break-word; }}
-.messages {{
-    background:#191b21; border:1px solid #292c35;
-    border-radius:18px; overflow:hidden;
-}}
-.messages-header {{
-    padding:18px 22px; border-bottom:1px solid #292c35;
-    font-weight:800; font-size:17px;
-}}
-.message {{
-    display:flex; gap:13px; padding:18px 22px;
-    border-bottom:1px solid #292c35;
-}}
-.message:last-child {{ border-bottom:0; }}
-.avatar {{
-    width:40px; height:40px; min-width:40px;
-    border-radius:50%; object-fit:cover; background:#292c35;
-}}
-.fallback {{
-    display:flex; align-items:center; justify-content:center;
-    font-weight:800; color:white; background:#8e44ad;
-}}
-.message-main {{ min-width:0; flex:1; }}
-.message-header {{
-    display:flex; align-items:baseline; gap:8px;
-    flex-wrap:wrap; margin-bottom:7px;
-}}
-.author {{ font-weight:800; color:#fff; }}
-.author-id, time {{ color:#7f8492; font-size:11px; }}
-.message-content {{
-    white-space:pre-wrap; overflow-wrap:anywhere; color:#e5e7eb;
-}}
-.empty {{ color:#777d8b; font-style:italic; }}
-.reply-reference {{
-    display:inline-block; background:#22252d; color:#9298a8;
-    border-left:3px solid #8e44ad; border-radius:5px;
-    padding:5px 9px; font-size:11px; margin-bottom:8px;
-}}
-code {{ color:#c9a7db; }}
-.attachments {{ display:flex; flex-direction:column; gap:7px; margin-top:10px; }}
-.attachment {{
-    display:flex; align-items:center; gap:10px;
-    width:fit-content; max-width:100%; padding:9px 12px;
-    background:#22252d; border:1px solid #343844;
-    border-radius:9px; color:#e8e9ed; text-decoration:none;
-}}
-.attachment:hover {{ border-color:#8e44ad; }}
-.attachment-icon {{ font-size:20px; }}
-.attachment small {{ display:block; color:#858a98; }}
-.discord-embed {{
-    margin-top:10px; padding:12px 14px;
-    border-left:4px solid #8e44ad;
-    background:#20232a; border-radius:5px;
-}}
-.embed-title {{ font-weight:800; }}
-.embed-description {{ margin-top:5px; white-space:pre-wrap; }}
-.discord-embed a {{ display:inline-block; margin-top:8px; color:#b77bd4; }}
-.footer {{ text-align:center; color:#747987; font-size:11px; padding:18px; }}
-@media (max-width:700px) {{
-    body {{ padding:12px; }}
-    .stats {{ grid-template-columns:repeat(2,1fr); }}
-    .header {{ padding:20px; }}
-    .title {{ font-size:23px; }}
-    .message {{ padding:15px; }}
-}}
-</style>
-</head>
-<body>
-<div class="container">
-<section class="header">
-    <div class="brand">
-        <div class="brand-icon">🎫</div>
-        <div>
-            <div class="brand-title">Evelly</div>
-            <div class="brand-subtitle">Histórico de Atendimento</div>
-        </div>
-    </div>
-    <h1 class="title">Ticket #{ticket_id}</h1>
-    <p class="subtitle">Transcrição completa do atendimento encerrado.</p>
-    <div class="stats">
-        <div class="stat"><span class="stat-label">Servidor</span><span class="stat-value">{server_name}</span></div>
-        <div class="stat"><span class="stat-label">Canal</span><span class="stat-value">#{channel_name}</span></div>
-        <div class="stat"><span class="stat-label">Categoria</span><span class="stat-value">{category}</span></div>
-        <div class="stat"><span class="stat-label">Mensagens</span><span class="stat-value">{message_count}</span></div>
-    </div>
-</section>
-<section class="messages">
-    <div class="messages-header">💬 Histórico da conversa</div>
-    {''.join(messages_html)}
-</section>
-<div class="footer">
-    Gerado pela Evelly • {generated_at.strftime("%d/%m/%Y às %H:%M:%S UTC")}<br>
-    Servidor ID: {server_id} • Canal ID: {channel_id} • Usuário ID: {user_id}
-</div>
-</div>
-</body>
-</html>
-'''
-
-    return html_document.encode("utf-8")
+    data = "\n".join(lines).encode("utf-8")
+    return data
 
 
 async def send_transcript_dm(member: discord.Member, ticket: dict, transcript: bytes):
-    filename = f"ticket-{ticket.get('id', 'sem-id')}-transcript.html"
+    filename = f"ticket-{ticket.get('id', 'sem-id')}-log.txt"
 
     embed = discord.Embed(
-        title="📄 Histórico do seu atendimento",
+        title="📄 Log do seu atendimento",
         description=(
-            "Seu ticket foi encerrado com sucesso.\n\n"
-            "O histórico completo da conversa está anexado abaixo "
-            "em um formato organizado para visualização."
+            "Seu ticket foi encerrado e o histórico completo do atendimento "
+            "está anexado nesta mensagem."
         ),
         color=PURPLE,
-        timestamp=discord.utils.utcnow(),
     )
-
-    embed.add_field(name="🎫 Ticket", value=f"`#{ticket.get('id', 'N/A')}`", inline=True)
-    embed.add_field(name="📌 Categoria", value=f"`{str(ticket.get('category', 'atendimento'))}`", inline=True)
-    embed.add_field(name="🏠 Servidor", value=f"`{member.guild.name}`", inline=True)
-    embed.add_field(name="📎 Formato", value="`HTML • Transcript completo`", inline=True)
     embed.add_field(
-        name="🔐 Privacidade",
-        value="Este histórico foi enviado somente para você.",
-        inline=False,
+        name="🎫 Ticket",
+        value=f"`#{ticket.get('id', 'N/A')}`",
+        inline=True,
     )
-
-    if member.guild.me:
-        embed.set_author(
-            name="Evelly • Sistema de Tickets",
-            icon_url=member.guild.me.display_avatar.url,
-        )
-
+    embed.add_field(
+        name="📌 Categoria",
+        value=str(ticket.get("category", "atendimento")),
+        inline=True,
+    )
     embed.set_footer(text="Evelly • Histórico de Atendimento")
 
     await member.send(
         embed=embed,
-        file=discord.File(
-            io.BytesIO(transcript),
-            filename=filename,
-        ),
+        file=discord.File(io.BytesIO(transcript), filename=filename),
     )
-
-async def delete_ticket_temp_voice_channel(guild: discord.Guild, ticket_id):
-    """
-    Remove todas as calls temporárias deste ticket.
-    A identificação é feita pelo nome:
-    🔊・atendimento-<ticket_id>-<timestamp>
-    """
-    if guild is None or ticket_id is None:
-        return 0
-
-    prefix = f"{TEMP_VOICE_MARKER}{ticket_id}-"
-    removed = 0
-
-    for channel in list(guild.voice_channels):
-        if not channel.name.startswith(prefix):
-            continue
-
-        try:
-            await channel.delete(
-                reason=f"Evelly • Call removida ao fechar ticket #{ticket_id}"
-            )
-            removed += 1
-            print(
-                f"[TICKET] Call removida ao fechar ticket: "
-                f"{guild.name} / {channel.name}",
-                flush=True,
-            )
-        except discord.NotFound:
-            removed += 1
-        except discord.Forbidden as e:
-            print(
-                f"[TICKET] Sem permissão para remover call: "
-                f"{guild.name} / {channel.name} | {e}",
-                flush=True,
-            )
-        except discord.HTTPException as e:
-            print(
-                f"[TICKET] Erro removendo call ao fechar ticket: {e}",
-                flush=True,
-            )
-
-    return removed
 
 
 class TicketCategorySelect(discord.ui.Select):
@@ -601,7 +330,7 @@ class TicketCategorySelect(discord.ui.Select):
 
         options = []
         for category in categories[:25]:
-            emoji = parse_ticket_emoji(category.get("emoji") or "🎫")
+            emoji = category.get("emoji") or "🎫"
             options.append(
                 discord.SelectOption(
                     label=str(category["label"])[:100],
@@ -840,187 +569,6 @@ class TicketActionsView(discord.ui.View):
             )
 
     @discord.ui.button(
-        label="Criar Call",
-        emoji="🔊",
-        style=discord.ButtonStyle.secondary,
-        custom_id="evelly_ticket_create_call",
-    )
-    async def create_call(
-        self,
-        interaction: discord.Interaction,
-        button: discord.ui.Button,
-    ):
-        # Reconhece a interação imediatamente. Consultas ao Supabase e
-        # criação do canal podem levar mais de 3 segundos.
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            permitido, cfg = await self._is_staff(interaction)
-
-            if not permitido:
-                await interaction.followup.send(
-                    "❌ Apenas o cargo da equipe configurado nos tickets "
-                    "pode criar uma call.",
-                    ephemeral=True,
-                )
-                return
-
-            ticket = await self._get_ticket(interaction)
-
-            if not ticket:
-                await interaction.followup.send(
-                    "❌ Não consegui localizar este ticket.",
-                    ephemeral=True,
-                )
-                return
-
-            guild = interaction.guild
-            if guild is None:
-                await interaction.followup.send(
-                    "❌ Este botão só pode ser usado dentro de um servidor.",
-                    ephemeral=True,
-                )
-                return
-
-            ticket_id = ticket.get("id", interaction.channel.id)
-
-            # Evita criar várias calls para o mesmo ticket.
-            existing_call = discord.utils.find(
-                lambda channel: (
-                    isinstance(channel, discord.VoiceChannel)
-                    and channel.name.startswith(
-                        f"{TEMP_VOICE_MARKER}{ticket_id}-"
-                    )
-                ),
-                guild.channels,
-            )
-
-            if existing_call:
-                await interaction.followup.send(
-                    f"🔊 A call deste ticket já existe: {existing_call.mention}",
-                    ephemeral=True,
-                )
-                return
-
-            category = None
-
-            if cfg:
-                try:
-                    category = guild.get_channel(int(cfg["category_id"]))
-                except (TypeError, ValueError, KeyError):
-                    category = None
-
-            if not isinstance(category, discord.CategoryChannel):
-                category = interaction.channel.category
-
-            staff_role = None
-
-            if cfg and cfg.get("staff_role_id"):
-                try:
-                    staff_role = guild.get_role(int(cfg["staff_role_id"]))
-                except (TypeError, ValueError):
-                    staff_role = None
-
-            if not staff_role:
-                await interaction.followup.send(
-                    "❌ O cargo da equipe configurado nos tickets não existe mais.",
-                    ephemeral=True,
-                )
-                return
-
-            try:
-                ticket_user = guild.get_member(int(ticket["user_id"]))
-            except (TypeError, ValueError, KeyError):
-                ticket_user = None
-
-            if not ticket_user:
-                await interaction.followup.send(
-                    "❌ O usuário deste ticket não está mais no servidor.",
-                    ephemeral=True,
-                )
-                return
-
-            bot_member = guild.me
-
-            if bot_member is None:
-                await interaction.followup.send(
-                    "❌ Não consegui identificar a Evelly no servidor.",
-                    ephemeral=True,
-                )
-                return
-
-            overwrites = {
-                guild.default_role: discord.PermissionOverwrite(
-                    view_channel=False,
-                    connect=False,
-                ),
-                staff_role: discord.PermissionOverwrite(
-                    view_channel=True,
-                    connect=True,
-                    speak=True,
-                    stream=True,
-                    use_voice_activation=True,
-                ),
-                ticket_user: discord.PermissionOverwrite(
-                    view_channel=True,
-                    connect=True,
-                    speak=True,
-                    stream=True,
-                    use_voice_activation=True,
-                ),
-                bot_member: discord.PermissionOverwrite(
-                    view_channel=True,
-                    connect=True,
-                    speak=True,
-                    manage_channels=True,
-                ),
-            }
-
-            voice_channel = await guild.create_voice_channel(
-                name=f"🔊・atendimento-{ticket_id}-{int(time.time())}",
-                category=category,
-                overwrites=overwrites,
-                reason=f"Evelly • Call temporária do ticket #{ticket_id}",
-            )
-
-            await interaction.followup.send(
-                "🔊 **Call criada com sucesso!**\n\n"
-                f"📞 Canal: {voice_channel.mention}\n"
-                f"👤 Cliente: {ticket_user.mention}\n"
-                "🗑️ Ela será apagada automaticamente quando ficar vazia.",
-                ephemeral=True,
-            )
-
-            try:
-                await interaction.channel.send(
-                    f"🔊 {interaction.user.mention} criou uma call temporária: "
-                    f"{voice_channel.mention}",
-                    allowed_mentions=discord.AllowedMentions(users=True),
-                )
-            except Exception as e:
-                print(f"[TICKET] Aviso no ticket não enviado: {e}", flush=True)
-
-        except discord.Forbidden:
-            await interaction.followup.send(
-                "❌ Não tenho permissão para criar canais de voz.",
-                ephemeral=True,
-            )
-
-        except discord.HTTPException as e:
-            print(f"[TICKET] Create voice HTTP error: {e}", flush=True)
-            await interaction.followup.send(
-                "❌ O Discord recusou a criação da call.",
-                ephemeral=True,
-            )
-
-        except Exception as e:
-            print(f"[TICKET] Create voice error: {e}", flush=True)
-            await interaction.followup.send(
-                "❌ Ocorreu um erro ao criar a call. Verifique o console da Evelly.",
-                ephemeral=True,
-            )
-
-    @discord.ui.button(
         label="Fechar Ticket",
         emoji="🔒",
         style=discord.ButtonStyle.danger,
@@ -1061,13 +609,6 @@ class TicketActionsView(discord.ui.View):
 
             close_ticket_db(interaction.channel.id, interaction.user.id)
 
-            # Remove a call temporária imediatamente ao fechar o ticket.
-            ticket_id = ticket.get("id", interaction.channel.id)
-            await delete_ticket_temp_voice_channel(
-                interaction.guild,
-                ticket_id,
-            )
-
             if dm_ok:
                 await interaction.channel.send(
                     "📄 Log do atendimento gerada e enviada no privado do cliente.\n"
@@ -1103,7 +644,6 @@ class TicketActionsView(discord.ui.View):
 class Ticket(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.cleanup_temp_voice_channels.start()
 
     ticket = app_commands.Group(
         name="ticket",
@@ -1157,6 +697,50 @@ class Ticket(commands.Cog):
             "Agora use `/ticket painel` para publicar o painel.",
             ephemeral=True,
         )
+
+    @ticket.command(
+        name="mensagem",
+        description="Personaliza a mensagem enviada quando um ticket é criado.",
+    )
+    async def mensagem(self, interaction: discord.Interaction):
+        if not pode_controlar_evelly(interaction.user):
+            await interaction.response.send_message(
+                "❌ Você não possui permissão para configurar tickets.",
+                ephemeral=True,
+            )
+            return
+
+        atual = get_ticket_message(interaction.guild.id)
+
+        class TicketMessageModal(discord.ui.Modal, title="Mensagem dos Tickets"):
+            texto = discord.ui.TextInput(
+                label="Mensagem que aparecerá no ticket",
+                style=discord.TextStyle.paragraph,
+                required=True,
+                max_length=4000,
+                default=atual,
+                placeholder="Digite a mensagem personalizada...",
+            )
+
+            async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                ok = save_ticket_message(
+                    modal_interaction.guild.id,
+                    modal_self.texto.value,
+                )
+                if not ok:
+                    await modal_interaction.response.send_message(
+                        "❌ Não consegui salvar a mensagem. Verifique se a coluna `ticket_message` foi criada no Supabase.",
+                        ephemeral=True,
+                    )
+                    return
+
+                await modal_interaction.response.send_message(
+                    "✅ Mensagem dos tickets atualizada!\n\n"
+                    "Ela será usada nos próximos tickets. Os tickets já abertos não serão alterados.",
+                    ephemeral=True,
+                )
+
+        await interaction.response.send_modal(TicketMessageModal())
 
     @ticket.command(
         name="painel",
@@ -1383,7 +967,7 @@ class Ticket(commands.Cog):
                 .update({
                     "label": nome[:100],
                     "description": descricao[:100],
-                    "emoji": str(emoji).strip(),
+                    "emoji": emoji[:10],
                 })
                 .eq("guild_id", interaction.guild.id)
                 .eq("key", key)
@@ -1549,13 +1133,17 @@ class Ticket(commands.Cog):
             )
             return
 
+        mensagem_personalizada = render_ticket_message(
+            get_ticket_message(guild.id),
+            interaction,
+            registro.get("id"),
+            categoria_cfg,
+            staff_role,
+        )
+
         embed = discord.Embed(
             title=f"{categoria_cfg.get('emoji', '🎫')} {categoria_cfg['label']} — LN Store",
-            description=(
-                f"Olá, {interaction.user.mention}!\n\n"
-                "Seu atendimento foi criado com sucesso.\n"
-                "Aguarde um atendente reivindicar seu ticket."
-            ),
+            description=mensagem_personalizada,
             color=PURPLE,
         )
         embed.add_field(
@@ -1593,112 +1181,39 @@ class Ticket(commands.Cog):
         )
 
     async def cog_load(self):
-        # O painel é recriado dinamicamente por servidor, portanto não
-        # registramos um menu global com categorias antigas.
+        # Registra as Views como persistentes para que os componentes
+        # continuem funcionando mesmo depois de um restart/redeploy.
+        #
+        # TicketActionsView já possui custom_id fixos nos botões.
         self.bot.add_view(TicketActionsView(self))
 
-    def cog_unload(self):
-        if self.cleanup_temp_voice_channels.is_running():
-            self.cleanup_temp_voice_channels.cancel()
+        # O painel de abertura usa um Select dinâmico por servidor.
+        # Depois de um restart, não precisamos reconstruir as opções
+        # originais apenas para o Discord reconhecer o custom_id:
+        # o valor escolhido chega na interação e criar_ticket()
+        # consulta novamente as categorias no Supabase.
+        #
+        # Este Select "placeholder" serve para reativar TODOS os
+        # painéis já publicados, sem obrigar o administrador a executar
+        # /ticket painel novamente.
+        persistent_categories = [{
+            "key": "none",
+            "label": "Selecione uma categoria",
+            "description": "Categorias carregadas do Supabase.",
+            "emoji": "🎫",
+        }]
 
-    @tasks.loop(seconds=30)
-    async def cleanup_temp_voice_channels(self):
-        """
-        Remove calls temporárias que estejam vazias.
-        Existe uma tolerância de 60 segundos após a criação para
-        evitar que uma call recém-criada seja apagada antes do uso.
-        """
-        agora = int(time.time())
+        self.bot.add_view(
+            TicketPanelView(self, persistent_categories)
+        )
 
-        for guild in self.bot.guilds:
-            for channel in list(guild.voice_channels):
-                if not channel.name.startswith(TEMP_VOICE_MARKER):
-                    continue
-
-                try:
-                    partes = channel.name.rsplit("-", 1)
-                    criado_em = int(partes[-1])
-                except (ValueError, IndexError):
-                    criado_em = agora
-
-                if channel.members:
-                    continue
-
-                if agora - criado_em < TEMP_VOICE_GRACE_SECONDS:
-                    continue
-
-                try:
-                    await channel.delete(
-                        reason="Evelly • Call temporária vazia"
-                    )
-                    print(
-                        f"[TICKET] Call temporária removida: "
-                        f"{guild.name} / {channel.name}",
-                        flush=True,
-                    )
-                except discord.NotFound:
-                    pass
-                except discord.Forbidden:
-                    print(
-                        f"[TICKET] Sem permissão para remover call: "
-                        f"{guild.name} / {channel.name}",
-                        flush=True,
-                    )
-                except discord.HTTPException as e:
-                    print(
-                        f"[TICKET] Erro removendo call temporária: {e}",
-                        flush=True,
-                    )
-
-    @cleanup_temp_voice_channels.before_loop
-    async def before_cleanup_temp_voice_channels(self):
-        await self.bot.wait_until_ready()
+        print(
+            "♻️ Painel de tickets persistente registrado após restart.",
+            flush=True,
+        )
 
 
 # Método auxiliar para fechar via comando, compartilhando a mesma rotina do botão.
-async def delete_ticket_temp_voice_channel(guild: discord.Guild, ticket_id):
-    """
-    Remove imediatamente a call temporária vinculada ao ticket.
-    Não depende de VoiceChannel.topic; usa o nome da call.
-    """
-    if guild is None or ticket_id is None:
-        return False
-
-    prefix = f"{TEMP_VOICE_MARKER}{ticket_id}-"
-
-    for channel in list(guild.voice_channels):
-        if not channel.name.startswith(prefix):
-            continue
-
-        try:
-            await channel.delete(
-                reason=f"Evelly • Call removida com o fechamento do ticket #{ticket_id}"
-            )
-            print(
-                f"[TICKET] Call temporária removida ao fechar ticket: "
-                f"{guild.name} / {channel.name}",
-                flush=True,
-            )
-            return True
-        except discord.NotFound:
-            return True
-        except discord.Forbidden:
-            print(
-                f"[TICKET] Sem permissão para remover call ao fechar ticket: "
-                f"{guild.name} / {channel.name}",
-                flush=True,
-            )
-            return False
-        except discord.HTTPException as e:
-            print(
-                f"[TICKET] Erro removendo call ao fechar ticket: {e}",
-                flush=True,
-            )
-            return False
-
-    return False
-
-
 async def _close_ticket_from_command(self, interaction):
     ticket = get_ticket_by_channel(interaction.channel.id)
     if not ticket:
@@ -1717,13 +1232,6 @@ async def _close_ticket_from_command(self, interaction):
                 print(f"[TICKET] Transcript DM error: {e}", flush=True)
 
         close_ticket_db(interaction.channel.id, interaction.user.id)
-
-        # Remove a call temporária imediatamente ao fechar o ticket.
-        ticket_id = ticket.get("id", interaction.channel.id)
-        await delete_ticket_temp_voice_channel(
-            interaction.guild,
-            ticket_id,
-        )
 
         await interaction.channel.send(
             "📄 Log gerada e enviada no privado do cliente."

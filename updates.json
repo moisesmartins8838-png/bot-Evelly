@@ -1,0 +1,20 @@
+{
+    "version": "2.4.0",
+    "title": "Sistema de Atualizações",
+    "date": "2026-09-26",
+    "description": "A Evelly recebeu melhorias importantes no sistema de tickets e na persistência dos seus painéis.",
+    "new": [
+        "Sistema de anúncios de atualização por canal do Discord.",
+        "Histórico de versões salvo no Supabase."
+    ],
+    "fixed": [
+        "Painel de tickets deixa de funcionar após reinicialização da Evelly.",
+        "Call temporária não era removida corretamente ao fechar um ticket."
+    ],
+    "improved": [
+        "Persistência dos componentes interativos do sistema de tickets.",
+        "Organização do changelog e dos anúncios da Evelly."
+    ],
+    "removed": [],
+    "security": []
+}
