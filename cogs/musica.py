@@ -9,12 +9,7 @@ from typing import Optional
 import discord
 from discord import app_commands
 from discord.ext import commands
-import yt_dlp
-
-try:
-    import imageio_ffmpeg
-except ImportError:
-    imageio_ffmpeg = None
+import wavelink
 
 from cogs.permissoes import pode_controlar_evelly
 
@@ -48,101 +43,11 @@ PURPLE = 0x8E44AD
 MUSIC_PREFIX = "evelly_music_"
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-COOKIES_FILE = BASE_DIR / "cookies.txt"
 
 
-def prepare_youtube_cookies() -> Optional[Path]:
-    """
-    Obtém os cookies do YouTube com esta prioridade:
-    1. YOUTUBE_COOKIE_FILE (arquivo baixado pelo GitHub Actions)
-    2. YOUTUBE_COOKIES (Secret antigo, como fallback)
-    3. cookies.txt local (PC)
+# Lavalink/Wavelink resolve o áudio no servidor.
+# Não precisamos mais de cookies do YouTube nem de FFmpeg local.
 
-    O conteúdo dos cookies nunca é impresso nos logs.
-    """
-
-    # 1. Arquivo de cookies baixado pelo GitHub Actions
-    cookie_file = os.getenv("YOUTUBE_COOKIE_FILE")
-
-    if cookie_file:
-        path = Path(cookie_file)
-
-        if path.exists() and path.is_file() and path.stat().st_size > 0:
-            return path
-
-    # 2. Secret antigo como fallback
-    secret = os.getenv("YOUTUBE_COOKIES")
-
-    if secret and secret.strip():
-        runtime_file = Path(tempfile.gettempdir()) / "evelly_youtube_cookies.txt"
-        runtime_file.write_text(secret, encoding="utf-8")
-        return runtime_file
-
-    # 3. Cookies local no PC
-    if COOKIES_FILE.exists():
-        return COOKIES_FILE
-
-    return None
-
-def ffmpeg_executable() -> str:
-    """Retorna um FFmpeg disponível no ambiente."""
-    custom = os.getenv("FFMPEG_PATH")
-    if custom and Path(custom).exists():
-        return custom
-
-    if imageio_ffmpeg is not None:
-        try:
-            path = imageio_ffmpeg.get_ffmpeg_exe()
-            if path:
-                return path
-        except Exception:
-            pass
-
-    return "ffmpeg"
-
-
-YTDL_OPTIONS = {
-    # O cliente web_embedded é o mesmo cliente que o teste do GitHub
-    # está conseguindo extrair corretamente (401+251).
-    "format": "bestaudio[acodec!=none]/bestaudio/best",
-
-    "noplaylist": True,
-    "quiet": True,
-    "no_warnings": True,
-    "default_search": "ytsearch",
-    "source_address": "0.0.0.0",
-    "extract_flat": False,
-    "skip_download": True,
-
-    # Permite ao yt-dlp resolver os desafios JS usando o Node instalado
-    # no GitHub Actions.
-    "js_runtimes": {
-        "node": {},
-    },
-
-    # Mantemos o cliente web_embedded porque o diagnóstico do GitHub
-    # confirmou que ele entrega formatos de áudio válidos.
-    "extractor_args": {
-        "youtube": {
-            "player_client": ["web_embedded"],
-        },
-        "youtubepot-bgutilhttp": {
-            "base_url": "http://127.0.0.1:4416",
-        },
-    },
-}
-
-YOUTUBE_COOKIE_FILE = prepare_youtube_cookies()
-
-if YOUTUBE_COOKIE_FILE:
-    YTDL_OPTIONS["cookiefile"] = str(YOUTUBE_COOKIE_FILE)
-    print("🍪 Cookies do YouTube configurados para o yt-dlp.", flush=True)
-else:
-    print(
-        "⚠️ Nenhum cookies.txt/YOUTUBE_COOKIES encontrado. "
-        "O YouTube pode bloquear a reprodução.",
-        flush=True,
-    )
 
 
 @dataclass
@@ -150,25 +55,23 @@ class Song:
     title: str
     webpage_url: str
     stream_url: str = ""
-    http_headers: dict[str, str] = field(default_factory=dict)
     duration: Optional[int] = None
     thumbnail: Optional[str] = None
     requester_id: Optional[int] = None
     requester_name: str = ""
+    track: Optional[wavelink.Playable] = None
 
 
 @dataclass
 class GuildMusic:
     queue: list[Song] = field(default_factory=list)
     current: Optional[Song] = None
-    voice: Optional[discord.VoiceClient] = None
+    voice: Optional[wavelink.Player] = None
     volume: float = 0.60
     loop: str = "off"  # off / song / queue
     text_channel_id: Optional[int] = None
     playing: bool = False
     starting: bool = False
-    stop_requested: bool = False
-    play_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class MusicControlView(discord.ui.View):
@@ -191,28 +94,15 @@ class MusicControlView(discord.ui.View):
     ):
         state = self.cog.states.get(interaction.guild_id)
         if not state or not state.voice:
-            await interaction.response.send_message(
-                "❌ A Evelly não está em uma call.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("❌ A Evelly não está em uma call.", ephemeral=True)
             return
-
-        if state.voice.is_playing():
-            state.voice.pause()
-            await interaction.response.send_message(
-                "⏸️ Música pausada.",
-                ephemeral=True,
-            )
-        elif state.voice.is_paused():
-            await interaction.response.send_message(
-                "ℹ️ A música já está pausada.",
-                ephemeral=True,
-            )
+        if state.voice.playing:
+            await state.voice.pause(True)
+            await interaction.response.send_message("⏸️ Música pausada.", ephemeral=True)
+        elif state.voice.paused:
+            await interaction.response.send_message("ℹ️ A música já está pausada.", ephemeral=True)
         else:
-            await interaction.response.send_message(
-                "ℹ️ Não existe música tocando.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("ℹ️ Não existe música tocando.", ephemeral=True)
 
     @discord.ui.button(
         label="Continuar",
@@ -227,23 +117,13 @@ class MusicControlView(discord.ui.View):
     ):
         state = self.cog.states.get(interaction.guild_id)
         if not state or not state.voice:
-            await interaction.response.send_message(
-                "❌ A Evelly não está em uma call.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("❌ A Evelly não está em uma call.", ephemeral=True)
             return
-
-        if state.voice.is_paused():
-            state.voice.resume()
-            await interaction.response.send_message(
-                "▶️ Música retomada.",
-                ephemeral=True,
-            )
+        if state.voice.paused:
+            await state.voice.pause(False)
+            await interaction.response.send_message("▶️ Música retomada.", ephemeral=True)
         else:
-            await interaction.response.send_message(
-                "ℹ️ A música não está pausada.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("ℹ️ A música não está pausada.", ephemeral=True)
 
     @discord.ui.button(
         label="Pular",
@@ -257,20 +137,12 @@ class MusicControlView(discord.ui.View):
         button: discord.ui.Button,
     ):
         state = self.cog.states.get(interaction.guild_id)
-        if not state or not state.voice or not state.voice.is_playing():
-            await interaction.response.send_message(
-                "❌ Não existe música tocando.",
-                ephemeral=True,
-            )
+        if not state or not state.voice or not state.playing:
+            await interaction.response.send_message("❌ Não existe música tocando.", ephemeral=True)
             return
-
         state.loop = "off" if state.loop == "song" else state.loop
-        state.voice.stop()
-
-        await interaction.response.send_message(
-            "⏭️ Música pulada.",
-            ephemeral=True,
-        )
+        await state.voice.stop()
+        await interaction.response.send_message("⏭️ Música pulada.", ephemeral=True)
 
     @discord.ui.button(
         label="Parar",
@@ -285,27 +157,18 @@ class MusicControlView(discord.ui.View):
     ):
         state = self.cog.states.get(interaction.guild_id)
         if not state:
-            await interaction.response.send_message(
-                "❌ Nenhuma sessão de música ativa.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("❌ Nenhuma sessão de música ativa.", ephemeral=True)
             return
-
         state.queue.clear()
         state.loop = "off"
-        state.stop_requested = True
-
-        if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
-            state.voice.stop()
-
+        if state.voice:
+            try:
+                await state.voice.stop()
+            except Exception:
+                pass
         state.current = None
         state.playing = False
-        state.starting = False
-
-        await interaction.response.send_message(
-            "⏹️ Reprodução parada e fila limpa.",
-            ephemeral=True,
-        )
+        await interaction.response.send_message("⏹️ Reprodução parada e fila limpa.", ephemeral=True)
 
     @discord.ui.button(
         label="Sair",
@@ -320,24 +183,15 @@ class MusicControlView(discord.ui.View):
     ):
         state = self.cog.states.get(interaction.guild_id)
         if not state or not state.voice:
-            await interaction.response.send_message(
-                "❌ A Evelly não está em uma call.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("❌ A Evelly não está em uma call.", ephemeral=True)
             return
-
-        state.stop_requested = True
         await state.voice.disconnect(force=True)
         state.voice = None
         state.queue.clear()
         state.current = None
         state.playing = False
-        state.starting = False
+        await interaction.response.send_message("👋 Saí da call e limpei a fila.", ephemeral=True)
 
-        await interaction.response.send_message(
-            "👋 Saí da call e limpei a fila.",
-            ephemeral=True,
-        )
 
 
 class Musica(commands.Cog):
@@ -352,7 +206,7 @@ class Musica(commands.Cog):
         self._register_commands()
 
         print("🎵 Sistema de música da Evelly carregado.", flush=True)
-        print(f"🎵 FFmpeg: {ffmpeg_executable()}", flush=True)
+        print("🎵 Motor: Wavelink + Lavalink", flush=True)
 
     def _register_commands(self):
         # ----------------------------------------------------
@@ -383,7 +237,7 @@ class Musica(commands.Cog):
             state = self.get_state(interaction.guild.id)
 
             try:
-                if state.voice and state.voice.is_connected():
+                if state.voice and state.voice.connected:
                     if state.voice.channel != member.voice.channel:
                         await state.voice.move_to(member.voice.channel)
                     await interaction.followup.send(
@@ -392,7 +246,7 @@ class Musica(commands.Cog):
                     )
                     return
 
-                state.voice = await member.voice.channel.connect()
+                state.voice = await member.voice.channel.connect(cls=wavelink.Player)
                 state.text_channel_id = interaction.channel_id
 
                 await interaction.followup.send(
@@ -442,8 +296,8 @@ class Musica(commands.Cog):
             state.text_channel_id = interaction.channel_id
 
             try:
-                if state.voice is None or not state.voice.is_connected():
-                    state.voice = await member.voice.channel.connect()
+                if state.voice is None or not state.voice.connected:
+                    state.voice = await member.voice.channel.connect(cls=wavelink.Player)
                 elif state.voice.channel != member.voice.channel:
                     await state.voice.move_to(member.voice.channel)
 
@@ -458,7 +312,6 @@ class Musica(commands.Cog):
                     )
                     return
 
-                state.stop_requested = False
                 state.queue.append(song)
 
                 embed = self.song_embed(
@@ -499,8 +352,8 @@ class Musica(commands.Cog):
                 )
                 return
 
-            if state.voice.is_playing():
-                state.voice.pause()
+            if state.voice.playing:
+                await state.voice.pause(True)
                 await interaction.response.send_message("⏸️ Música pausada.")
             else:
                 await interaction.response.send_message(
@@ -517,8 +370,8 @@ class Musica(commands.Cog):
         )
         async def continuar(interaction: discord.Interaction):
             state = self.states.get(interaction.guild_id)
-            if state and state.voice and state.voice.is_paused():
-                state.voice.resume()
+            if state and state.voice and state.voice.paused:
+                await state.voice.pause(False)
                 await interaction.response.send_message("▶️ Música retomada.")
             else:
                 await interaction.response.send_message(
@@ -535,14 +388,14 @@ class Musica(commands.Cog):
         )
         async def skip(interaction: discord.Interaction):
             state = self.states.get(interaction.guild_id)
-            if not state or not state.voice or not state.voice.is_playing():
+            if not state or not state.voice or not state.voice.playing:
                 await interaction.response.send_message(
                     "❌ Não há música tocando.",
                     ephemeral=True,
                 )
                 return
 
-            state.voice.stop()
+            await state.voice.stop()
             await interaction.response.send_message("⏭️ Música pulada.")
 
         # ----------------------------------------------------
@@ -563,14 +416,12 @@ class Musica(commands.Cog):
 
             state.queue.clear()
             state.loop = "off"
-            state.stop_requested = True
 
-            if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
-                state.voice.stop()
+            if state.voice and (state.voice.playing or state.voice.paused):
+                await state.voice.stop()
 
             state.current = None
             state.playing = False
-            state.starting = False
 
             await interaction.response.send_message(
                 "⏹️ Reprodução parada e fila limpa."
@@ -593,13 +444,11 @@ class Musica(commands.Cog):
                 )
                 return
 
-            state.stop_requested = True
             await state.voice.disconnect(force=True)
             state.voice = None
             state.queue.clear()
             state.current = None
             state.playing = False
-            state.starting = False
             state.loop = "off"
 
             await interaction.response.send_message(
@@ -708,10 +557,8 @@ class Musica(commands.Cog):
             state = self.get_state(interaction.guild_id)
             state.volume = valor / 100
 
-            if state.voice and state.voice.source:
-                source = state.voice.source
-                if isinstance(source, discord.PCMVolumeTransformer):
-                    source.volume = state.volume
+            if state.voice:
+                await state.voice.set_volume(int(state.volume * 100))
 
             await interaction.response.send_message(
                 f"🔊 Volume definido para **{valor}%**."
@@ -855,285 +702,153 @@ class Musica(commands.Cog):
         query: str,
         requester: discord.abc.User,
     ) -> Optional[Song]:
-        """Resolve URL ou pesquisa do YouTube fora do event loop."""
-        def extract():
+        """Pesquisa/resolva a faixa usando o plugin do YouTube no Lavalink."""
+        try:
             target = query.strip()
-
             if not target.startswith(("http://", "https://")):
-                target = f"ytsearch1:{target}"
+                target = f"ytsearch:{target}"
 
-            options = dict(YTDL_OPTIONS)
+            result = await wavelink.Playable.search(target)
+            if not result:
+                return None
 
-            with yt_dlp.YoutubeDL(options) as ydl:
-                info = ydl.extract_info(
-                    target,
-                    download=False,
-                )
+            track = result.tracks[0] if isinstance(result, wavelink.Playlist) else result[0]
+            duration_ms = getattr(track, "length", 0) or 0
+            thumbnail = getattr(track, "artwork", None)
+            webpage_url = getattr(track, "uri", None) or query
 
-                if not info:
-                    return None
-
-                if "entries" in info:
-                    entries = [
-                        item for item in info.get("entries", [])
-                        if item
-                    ]
-                    if not entries:
-                        return None
-                    info = entries[0]
-
-                stream_url = info.get("url") or ""
-
-                # O Discord/FFmpeg precisa de uma URL de mídia direta.
-                # Se o extrator retornar apenas uma entrada sem URL,
-                # tentamos usar a URL da página no refresh_stream_url.
-                return {
-                    "title": info.get("title") or "Sem título",
-                    "webpage_url": (
-                        info.get("webpage_url")
-                        or info.get("original_url")
-                        or query
-                    ),
-                    "stream_url": info.get("url") or "",
-                    "http_headers": dict(info.get("http_headers") or {}),
-                    "duration": info.get("duration"),
-                    "thumbnail": info.get("thumbnail"),
-                }
-
-        data = await asyncio.to_thread(extract)
-
-        if not data:
+            return Song(
+                title=getattr(track, "title", "Sem título"),
+                webpage_url=webpage_url,
+                duration=int(duration_ms / 1000) if duration_ms else None,
+                thumbnail=thumbnail,
+                requester_id=requester.id,
+                requester_name=requester.display_name,
+                track=track,
+            )
+        except Exception as error:
+            print(f"[MUSICA] Erro pesquisando no Lavalink: {error}", flush=True)
             return None
 
-        return Song(
-            title=data["title"],
-            webpage_url=data["webpage_url"],
-            stream_url=data["stream_url"],
-            http_headers=data["http_headers"],
-            duration=data["duration"],
-            thumbnail=data["thumbnail"],
-            requester_id=requester.id,
-            requester_name=requester.display_name,
-        )
-
     async def refresh_stream_url(self, song: Song) -> Song:
-        """Obtém uma URL de áudio fresca e seus headers para o FFmpeg."""
-        def extract():
-            options = dict(YTDL_OPTIONS)
-            with yt_dlp.YoutubeDL(options) as ydl:
-                info = ydl.extract_info(
-                    song.webpage_url,
-                    download=False,
-                )
-
-                if "entries" in info:
-                    entries = [
-                        item for item in info.get("entries", [])
-                        if item
-                    ]
-                    if not entries:
-                        raise RuntimeError("Música não encontrada.")
-                    info = entries[0]
-
-                return {
-                    "url": info.get("url") or "",
-                    "http_headers": dict(info.get("http_headers") or {}),
-                }
-
-        data = await asyncio.to_thread(extract)
-
-        if not data["url"]:
-            raise RuntimeError("Não foi possível obter o áudio.")
-
-        song.stream_url = data["url"]
-        song.http_headers = data["http_headers"]
+        """Compatibilidade estrutural: o Lavalink gerencia o stream automaticamente."""
         return song
 
     async def play_next(self, guild_id: int):
         state = self.states.get(guild_id)
 
-        if not state or not state.voice or not state.voice.is_connected():
+        if not state or not state.voice or not state.voice.connected:
             return
 
-        async with state.play_lock:
-            # Evita duas rotinas tentando iniciar a mesma fila ao mesmo tempo.
-            if state.starting:
+        if state.starting:
+            return
+
+        if state.current and state.loop == "song":
+            song = state.current
+        else:
+            if state.current and state.loop == "queue":
+                state.queue.append(state.current)
+
+            if not state.queue:
+                state.current = None
+                state.playing = False
+                channel = self.bot.get_channel(state.text_channel_id or 0)
+                if channel:
+                    try:
+                        await channel.send("📭 A fila terminou.")
+                    except Exception:
+                        pass
                 return
 
-            if state.playing or state.voice.is_playing() or state.voice.is_paused():
-                return
+            song = state.queue.pop(0)
+            state.current = song
 
-            if state.stop_requested:
-                state.stop_requested = False
-                return
+        if not song.track:
+            state.current = None
+            state.playing = False
+            await self.play_next(guild_id)
+            return
 
-            # Uma única chamada controla toda a transição da fila.
-            while (
-                state.voice
-                and state.voice.is_connected()
-                and not state.playing
-                and not state.starting
-            ):
-                # Loop da música atual.
-                if state.current and state.loop == "song":
-                    song = state.current
-                else:
-                    if state.current and state.loop == "queue":
-                        state.queue.append(state.current)
+        state.starting = True
 
-                    if not state.queue:
-                        state.current = None
-                        state.playing = False
-                        return
+        try:
+            await state.voice.play(song.track)
+            await state.voice.set_volume(int(state.volume * 100))
+            state.playing = True
 
-                    song = state.queue.pop(0)
-                    state.current = song
-
-                state.starting = True
-
+            channel = self.bot.get_channel(state.text_channel_id or 0)
+            if channel:
                 try:
-                    song = await self.refresh_stream_url(song)
-
-                    ffmpeg = ffmpeg_executable()
-
-                    # A URL do YouTube é protegida pelos mesmos headers usados
-                    # pelo yt-dlp. Sem eles o servidor pode responder 403.
-                    headers = song.http_headers or {}
-                    user_agent = headers.get("User-Agent", "")
-                    referer = headers.get("Referer", "")
-
-                    before_parts = [
-                        "-reconnect 1",
-                        "-reconnect_streamed 1",
-                        "-reconnect_delay_max 5",
-                        "-reconnect_on_network_error 1",
-                        "-reconnect_on_http_error 403,429,500,502,503,504",
-                    ]
-
-                    if user_agent:
-                        safe_ua = user_agent.replace("\\", "\\\\").replace('"', '\\\"')
-                        before_parts.append(f'-user_agent "{safe_ua}"')
-
-                    if referer:
-                        safe_referer = referer.replace("\\", "\\\\").replace('"', '\\\"')
-                        before_parts.append(f'-referer "{safe_referer}"')
-
-                    before_options = " ".join(before_parts)
-
-                    options = (
-                        "-vn "
-                        "-loglevel warning "
-                        "-ac 2 "
-                        "-ar 48000"
-                    )
-
-                    source = discord.FFmpegPCMAudio(
-                        song.stream_url,
-                        executable=ffmpeg,
-                        before_options=before_options,
-                        options=options,
-                    )
-
-                    source = discord.PCMVolumeTransformer(
-                        source,
-                        volume=state.volume,
-                    )
-
-                    def after_play(error):
-                        if error:
-                            print(
-                                f"[MUSICA] Erro de reprodução em "
-                                f"{guild_id}: {error}",
-                                flush=True,
-                            )
-
-                        future = asyncio.run_coroutine_threadsafe(
-                            self.handle_after(guild_id),
-                            self.bot.loop,
-                        )
-
-                        try:
-                            future.result(timeout=1)
-                        except Exception:
-                            pass
-
-                    state.voice.play(
-                        source,
-                        after=after_play,
-                    )
-
-                    state.playing = True
-                    state.starting = False
-
-                    channel = self.bot.get_channel(
-                        state.text_channel_id or 0
-                    )
-
-                    if channel:
-                        try:
-                            embed = self.song_embed(
-                                song,
-                                title="▶️ Tocando agora",
-                            )
-                            await channel.send(embed=embed)
-                        except Exception as error:
-                            print(
-                                f"[MUSICA] Erro enviando agora: {error}",
-                                flush=True,
-                            )
-
-                    return
-
+                    embed = self.song_embed(song, title="▶️ Tocando agora")
+                    await channel.send(embed=embed)
                 except Exception as error:
-                    print(
-                        f"[MUSICA] Falha ao iniciar {song.title}: {error}",
-                        flush=True,
-                    )
+                    print(f"[MUSICA] Erro enviando agora: {error}", flush=True)
 
-                    state.starting = False
-                    state.current = None
-                    state.playing = False
+        except Exception as error:
+            print(f"[MUSICA] Falha ao iniciar {song.title}: {error}", flush=True)
+            state.current = None
+            state.playing = False
+            channel = self.bot.get_channel(state.text_channel_id or 0)
+            if channel:
+                try:
+                    await channel.send(f"⚠️ Não consegui reproduzir **{song.title}**. Pulando para a próxima.")
+                except Exception:
+                    pass
+            await self.play_next(guild_id)
+        finally:
+            state.starting = False
 
-                    channel = self.bot.get_channel(
-                        state.text_channel_id or 0
-                    )
-
-                    if channel:
-                        try:
-                            await channel.send(
-                                f"⚠️ Não consegui reproduzir "
-                                f"**{song.title}**. Pulando para a próxima."
-                            )
-                        except Exception:
-                            pass
-
-                    # Não chama play_next recursivamente. Continua dentro
-                    # do mesmo lock para evitar corrida/deadlock.
-                    continue
-
-                finally:
-                    state.starting = False
-
-    async def handle_after(self, guild_id: int):
-        state = self.states.get(guild_id)
-
+    @commands.Cog.listener()
+    async def on_wavelink_track_end(self, payload):
+        player = payload.player
+        if not player or not player.guild:
+            return
+        state = self.states.get(player.guild.id)
         if not state:
             return
-
-        # O callback do discord.py acontece em uma thread do player.
-        # Aqui voltamos ao event loop e controlamos a próxima faixa uma vez.
-        await asyncio.sleep(0.5)
-
-        if state.stop_requested:
-            state.stop_requested = False
-            state.playing = False
-            state.starting = False
-            return
-
         state.playing = False
+        await asyncio.sleep(0.25)
+        if state.voice and state.voice.connected:
+            await self.play_next(player.guild.id)
 
-        if state.voice and state.voice.is_connected():
-            await self.play_next(guild_id)
+    @commands.Cog.listener()
+    async def on_wavelink_track_exception(self, payload):
+        player = payload.player
+        if not player or not player.guild:
+            return
+        state = self.states.get(player.guild.id)
+        if not state:
+            return
+        print(f"[MUSICA] Erro Lavalink na guild {player.guild.id}: {payload.exception}", flush=True)
+        state.playing = False
+        channel = self.bot.get_channel(state.text_channel_id or 0)
+        if channel:
+            try:
+                await channel.send("⚠️ O Lavalink encontrou um erro nessa música. Tentando a próxima.")
+            except Exception:
+                pass
+        await asyncio.sleep(0.25)
+        await self.play_next(player.guild.id)
+
+    @commands.Cog.listener()
+    async def on_wavelink_track_stuck(self, payload):
+        player = payload.player
+        if not player or not player.guild:
+            return
+        state = self.states.get(player.guild.id)
+        if not state:
+            return
+        state.playing = False
+        try:
+            await player.stop()
+        except Exception:
+            pass
+        await asyncio.sleep(0.25)
+        await self.play_next(player.guild.id)
+
+    @commands.Cog.listener()
+    async def on_wavelink_node_ready(self, payload):
+        print(f"🎵 Lavalink pronto: {payload.node.identifier}", flush=True)
 
     def song_embed(
         self,
@@ -1181,7 +896,7 @@ class Musica(commands.Cog):
 
     def cog_unload(self):
         for state in self.states.values():
-            if state.voice and state.voice.is_connected():
+            if state.voice and state.voice.connected:
                 asyncio.create_task(
                     state.voice.disconnect(force=True)
                 )

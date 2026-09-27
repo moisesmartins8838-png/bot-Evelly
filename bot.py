@@ -1,9 +1,10 @@
-import os
+﻿import os
 import asyncio
 import traceback
 from datetime import datetime, timezone
 
 import discord
+import wavelink
 from discord.ext import commands
 
 from dotenv import load_dotenv
@@ -20,6 +21,10 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+
+LAVALINK_HOST = "127.0.0.1"
+LAVALINK_PORT = 2333
+LAVALINK_PASSWORD = "evelly123"
 
 
 # ============================================================
@@ -38,7 +43,7 @@ PRESENCE_TYPE = "playing"
 
 
 # ============================================================
-# INFORMAÇÕES DA EVELLY
+# INFORMAÃ‡Ã•ES DA EVELLY
 # ============================================================
 
 PRESENCE_NAME = "Evelly"
@@ -52,18 +57,18 @@ PRESENCE_STATE = "Jogando Blood Strike"
 # IMAGEM GRANDE
 # ============================================================
 #
-# Opção C escolhida:
+# OpÃ§Ã£o C escolhida:
 #
 # chatgpt_image_15_de_set_de_2026_16_25_50
 #
-# Essa será a imagem principal da Presence.
+# Essa serÃ¡ a imagem principal da Presence.
 #
 
 PRESENCE_LARGE_IMAGE = (
     "chatgpt_image_15_de_set_de_2026_16_25_50"
 )
 
-PRESENCE_LARGE_TEXT = "Evelly • LN"
+PRESENCE_LARGE_TEXT = "Evelly â€¢ LN"
 
 
 # ============================================================
@@ -82,7 +87,7 @@ PRESENCE_SMALL_TEXT = "Blood Strike"
 # PARTY
 # ============================================================
 #
-# Discord exibirá:
+# Discord exibirÃ¡:
 #
 # 1 de 4
 #
@@ -97,20 +102,20 @@ PRESENCE_PARTY_MAX = 4
 # TIMER PERSISTENTE
 # ============================================================
 #
-# O horário fica salvo no Supabase.
+# O horÃ¡rio fica salvo no Supabase.
 #
 # Portanto:
 #
 # Evelly inicia
-#       ↓
-# salva horário
-#       ↓
+#       â†“
+# salva horÃ¡rio
+#       â†“
 # GitHub reinicia
-#       ↓
+#       â†“
 # Evelly volta
-#       ↓
-# recupera horário
-#       ↓
+#       â†“
+# recupera horÃ¡rio
+#       â†“
 # contador continua
 #
 
@@ -121,9 +126,9 @@ PRESENCE_PERSIST_TIMER = True
 # RESET DO TIMER
 # ============================================================
 #
-# False = mantém o contador atual.
+# False = mantÃ©m o contador atual.
 #
-# True = cria um novo início.
+# True = cria um novo inÃ­cio.
 #
 # Deixe False normalmente.
 #
@@ -159,14 +164,14 @@ if SUPABASE_URL and SUPABASE_KEY:
     except Exception as erro:
 
         print(
-            f"⚠️ Não foi possível iniciar Supabase "
-            f"da presença: {erro}",
+            f"âš ï¸ NÃ£o foi possÃ­vel iniciar Supabase "
+            f"da presenÃ§a: {erro}",
             flush=True
         )
 
 
 # ============================================================
-# CARREGAR INÍCIO DA PRESENCE
+# CARREGAR INÃCIO DA PRESENCE
 # ============================================================
 
 async def carregar_inicio_presenca():
@@ -174,7 +179,7 @@ async def carregar_inicio_presenca():
     agora = datetime.now(timezone.utc)
 
     # --------------------------------------------------------
-    # Timer não persistente
+    # Timer nÃ£o persistente
     # --------------------------------------------------------
 
     if not PRESENCE_PERSIST_TIMER:
@@ -183,18 +188,18 @@ async def carregar_inicio_presenca():
 
 
     # --------------------------------------------------------
-    # Supabase indisponível
+    # Supabase indisponÃ­vel
     # --------------------------------------------------------
 
     if presence_supabase is None:
 
         print(
-            "⚠️ Supabase da presença indisponível.",
+            "âš ï¸ Supabase da presenÃ§a indisponÃ­vel.",
             flush=True
         )
 
         print(
-            "⚠️ O contador desta sessão não será persistente.",
+            "âš ï¸ O contador desta sessÃ£o nÃ£o serÃ¡ persistente.",
             flush=True
         )
 
@@ -204,7 +209,7 @@ async def carregar_inicio_presenca():
     try:
 
         # ====================================================
-        # FORÇAR NOVO TIMER
+        # FORÃ‡AR NOVO TIMER
         # ====================================================
 
         if PRESENCE_RESET_TIMER:
@@ -221,7 +226,7 @@ async def carregar_inicio_presenca():
             )
 
             print(
-                "🔄 Contador da Rich Presence reiniciado!",
+                "ðŸ”„ Contador da Rich Presence reiniciado!",
                 flush=True
             )
 
@@ -271,7 +276,7 @@ async def carregar_inicio_presenca():
 
 
                 print(
-                    "⏱️ Rich Presence retomada desde: "
+                    "â±ï¸ Rich Presence retomada desde: "
                     f"{inicio.isoformat()}",
                     flush=True
                 )
@@ -297,7 +302,7 @@ async def carregar_inicio_presenca():
 
 
         print(
-            "🆕 Novo contador da Rich Presence iniciado:",
+            "ðŸ†• Novo contador da Rich Presence iniciado:",
             flush=True
         )
 
@@ -313,7 +318,7 @@ async def carregar_inicio_presenca():
     except Exception as erro:
 
         print(
-            "⚠️ Erro ao recuperar contador "
+            "âš ï¸ Erro ao recuperar contador "
             f"da Rich Presence: {erro}",
             flush=True
         )
@@ -524,20 +529,20 @@ def obter_status_presenca():
 
 
 # ============================================================
-# VALIDAR CONFIGURAÇÕES
+# VALIDAR CONFIGURAÃ‡Ã•ES
 # ============================================================
 
 if not DISCORD_TOKEN:
 
     raise RuntimeError(
-        "❌ DISCORD_TOKEN não foi encontrado no .env"
+        "âŒ DISCORD_TOKEN nÃ£o foi encontrado no .env"
     )
 
 
 if not YOUTUBE_API_KEY:
 
     raise RuntimeError(
-        "❌ YOUTUBE_API_KEY não foi encontrado no .env"
+        "âŒ YOUTUBE_API_KEY nÃ£o foi encontrado no .env"
     )
 
 
@@ -579,6 +584,9 @@ class Evelly(commands.Bot):
     # ========================================================
 
     async def setup_hook(self):
+        lavalink_node = wavelink.Node(uri=f"http://{LAVALINK_HOST}:{LAVALINK_PORT}", password=LAVALINK_PASSWORD)
+        await wavelink.Pool.connect(nodes=[lavalink_node], client=self)
+        print("Lavalink conectado com sucesso.")
 
         print(
             "==============================================",
@@ -586,7 +594,7 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "🔄 CARREGANDO SISTEMAS DA EVELLY",
+            "ðŸ”„ CARREGANDO SISTEMAS DA EVELLY",
             flush=True
         )
 
@@ -603,14 +611,14 @@ class Evelly(commands.Bot):
         try:
 
             print(
-                "🗄️ Conectando ao Supabase...",
+                "ðŸ—„ï¸ Conectando ao Supabase...",
                 flush=True
             )
 
             criar_banco()
 
             print(
-                "☁️ Banco Supabase conectado!",
+                "â˜ï¸ Banco Supabase conectado!",
                 flush=True
             )
 
@@ -623,7 +631,7 @@ class Evelly(commands.Bot):
             )
 
             print(
-                "❌ ERRO AO CONECTAR AO BANCO",
+                "âŒ ERRO AO CONECTAR AO BANCO",
                 flush=True
             )
 
@@ -699,7 +707,7 @@ class Evelly(commands.Bot):
         for cog in cogs:
 
             print(
-                f"🔄 Carregando: {cog}",
+                f"ðŸ”„ Carregando: {cog}",
                 flush=True
             )
 
@@ -712,7 +720,7 @@ class Evelly(commands.Bot):
 
 
                 print(
-                    f"✅ Sistema carregado: {cog}",
+                    f"âœ… Sistema carregado: {cog}",
                     flush=True
                 )
 
@@ -725,7 +733,7 @@ class Evelly(commands.Bot):
                 )
 
                 print(
-                    f"❌ ERRO AO CARREGAR: {cog}",
+                    f"âŒ ERRO AO CARREGAR: {cog}",
                     flush=True
                 )
 
@@ -753,7 +761,7 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "✅ TODOS OS SISTEMAS FORAM PROCESSADOS!",
+            "âœ… TODOS OS SISTEMAS FORAM PROCESSADOS!",
             flush=True
         )
 
@@ -772,7 +780,7 @@ class Evelly(commands.Bot):
         if not PRESENCE_ENABLED:
 
             print(
-                "ℹ️ Rich Presence desativada.",
+                "â„¹ï¸ Rich Presence desativada.",
                 flush=True
             )
 
@@ -782,7 +790,7 @@ class Evelly(commands.Bot):
         try:
 
             # ------------------------------------------------
-            # Recuperar início persistente
+            # Recuperar inÃ­cio persistente
             # ------------------------------------------------
 
             inicio = (
@@ -827,52 +835,52 @@ class Evelly(commands.Bot):
             # ------------------------------------------------
 
             print(
-                "💜 Rich Presence da Evelly atualizada!",
+                "ðŸ’œ Rich Presence da Evelly atualizada!",
                 flush=True
             )
 
             print(
-                f"   ├─ Tipo: {PRESENCE_TYPE}",
+                f"   â”œâ”€ Tipo: {PRESENCE_TYPE}",
                 flush=True
             )
 
             print(
-                f"   ├─ Nome: {PRESENCE_NAME}",
+                f"   â”œâ”€ Nome: {PRESENCE_NAME}",
                 flush=True
             )
 
             print(
-                f"   ├─ Detalhes: {PRESENCE_DETAILS}",
+                f"   â”œâ”€ Detalhes: {PRESENCE_DETAILS}",
                 flush=True
             )
 
             print(
-                f"   ├─ Estado: {PRESENCE_STATE}",
+                f"   â”œâ”€ Estado: {PRESENCE_STATE}",
                 flush=True
             )
 
             print(
-                f"   ├─ Party: "
+                f"   â”œâ”€ Party: "
                 f"{PRESENCE_PARTY_CURRENT} de "
                 f"{PRESENCE_PARTY_MAX}",
                 flush=True
             )
 
             print(
-                "   ├─ Imagem grande: "
+                "   â”œâ”€ Imagem grande: "
                 f"{PRESENCE_LARGE_IMAGE}",
                 flush=True
             )
 
             print(
-                "   ├─ Imagem pequena: "
+                "   â”œâ”€ Imagem pequena: "
                 f"{PRESENCE_SMALL_IMAGE}",
                 flush=True
             )
 
             print(
-                "   └─ Timer persistente: "
-                f"{'SIM' if PRESENCE_PERSIST_TIMER else 'NÃO'}",
+                "   â””â”€ Timer persistente: "
+                f"{'SIM' if PRESENCE_PERSIST_TIMER else 'NÃƒO'}",
                 flush=True
             )
 
@@ -880,7 +888,7 @@ class Evelly(commands.Bot):
         except Exception as erro:
 
             print(
-                f"⚠️ Erro ao atualizar presença: {erro}",
+                f"âš ï¸ Erro ao atualizar presenÃ§a: {erro}",
                 flush=True
             )
 
@@ -899,22 +907,22 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "🤖 BOT ONLINE!",
+            "ðŸ¤– BOT ONLINE!",
             flush=True
         )
 
         print(
-            f"👤 Nome: {self.user}",
+            f"ðŸ‘¤ Nome: {self.user}",
             flush=True
         )
 
         print(
-            f"🆔 ID: {self.user.id}",
+            f"ðŸ†” ID: {self.user.id}",
             flush=True
         )
 
         print(
-            f"🌐 Servidores: {len(self.guilds)}",
+            f"ðŸŒ Servidores: {len(self.guilds)}",
             flush=True
         )
 
@@ -940,7 +948,7 @@ class Evelly(commands.Bot):
             try:
 
                 print(
-                    f"🔄 Sincronizando comandos: {guild.name}",
+                    f"ðŸ”„ Sincronizando comandos: {guild.name}",
                     flush=True
                 )
 
@@ -956,12 +964,12 @@ class Evelly(commands.Bot):
 
 
                 print(
-                    "✅ Comandos sincronizados!",
+                    "âœ… Comandos sincronizados!",
                     flush=True
                 )
 
                 print(
-                    f"📋 Total: {len(comandos)}",
+                    f"ðŸ“‹ Total: {len(comandos)}",
                     flush=True
                 )
 
@@ -980,7 +988,7 @@ class Evelly(commands.Bot):
 
 
                     print(
-                        f"   └─ /{nome}",
+                        f"   â””â”€ /{nome}",
                         flush=True
                     )
 
@@ -993,7 +1001,7 @@ class Evelly(commands.Bot):
                 )
 
                 print(
-                    f"❌ ERRO AO SINCRONIZAR "
+                    f"âŒ ERRO AO SINCRONIZAR "
                     f"{guild.name}",
                     flush=True
                 )
@@ -1026,73 +1034,73 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "🟢 EVELLY ESTÁ FUNCIONANDO!",
+            "ðŸŸ¢ EVELLY ESTÃ FUNCIONANDO!",
             flush=True
         )
 
         print(
-            "📦 Sistema de posts: ATIVO",
+            "ðŸ“¦ Sistema de posts: ATIVO",
             flush=True
         )
 
         print(
-            "📺 Sistema YouTube: ATIVO",
+            "ðŸ“º Sistema YouTube: ATIVO",
             flush=True
         )
 
         print(
-            "📞 Sistema de call: ATIVO",
+            "ðŸ“ž Sistema de call: ATIVO",
             flush=True
         )
 
         print(
-            "📨 Sistema EnviarPV: ATIVO",
+            "ðŸ“¨ Sistema EnviarPV: ATIVO",
             flush=True
         )
 
         print(
-            "🔗 Sistema LinkNot: ATIVO",
+            "ðŸ”— Sistema LinkNot: ATIVO",
             flush=True
         )
 
         print(
-            "💜 Sistema de boas-vindas: ATIVO",
+            "ðŸ’œ Sistema de boas-vindas: ATIVO",
             flush=True
         )
 
         print(
-            "🔇 Sistema de música: REMOVIDO",
+            "ðŸ”‡ Sistema de mÃºsica: REMOVIDO",
             flush=True
         )
 
         print(
-            "💜 Presença Discord: ATIVA",
+            "ðŸ’œ PresenÃ§a Discord: ATIVA",
             flush=True
         )
 
         print(
-            "🖼️ Asset grande: "
+            "ðŸ–¼ï¸ Asset grande: "
             "chatgpt_image_15_de_set_de_2026_16_25_50",
             flush=True
         )
 
         print(
-            "🎮 Asset pequeno: blood_strike_logo_",
+            "ðŸŽ® Asset pequeno: blood_strike_logo_",
             flush=True
         )
 
         print(
-            "🗄️ Supabase: ATIVO",
+            "ðŸ—„ï¸ Supabase: ATIVO",
             flush=True
         )
 
         print(
-            "⏱️ Timer persistente: ATIVO",
+            "â±ï¸ Timer persistente: ATIVO",
             flush=True
         )
 
         print(
-            "⏱️ Reinício automático: 5h30",
+            "â±ï¸ ReinÃ­cio automÃ¡tico: 5h30",
             flush=True
         )
 
@@ -1123,12 +1131,12 @@ class Evelly(commands.Bot):
         )
 
         print(
-            "❌ ERRO GERAL DA EVELLY",
+            "âŒ ERRO GERAL DA EVELLY",
             flush=True
         )
 
         print(
-            f"📌 Evento: {event_method}",
+            f"ðŸ“Œ Evento: {event_method}",
             flush=True
         )
 
@@ -1148,7 +1156,7 @@ bot = Evelly()
 
 
 # ============================================================
-# REINÍCIO AUTOMÁTICO
+# REINÃCIO AUTOMÃTICO
 # ============================================================
 
 TEMPO_REINICIO = (
@@ -1169,12 +1177,12 @@ async def reinicio_automatico():
     )
 
     print(
-        "⏱️ SISTEMA DE REINÍCIO AUTOMÁTICO",
+        "â±ï¸ SISTEMA DE REINÃCIO AUTOMÃTICO",
         flush=True
     )
 
     print(
-        "🔄 Ciclo configurado: 5 horas e 30 minutos",
+        "ðŸ”„ Ciclo configurado: 5 horas e 30 minutos",
         flush=True
     )
 
@@ -1197,23 +1205,23 @@ async def reinicio_automatico():
         )
 
         print(
-            "🔄 REINÍCIO AUTOMÁTICO",
+            "ðŸ”„ REINÃCIO AUTOMÃTICO",
             flush=True
         )
 
         print(
-            "⏱️ Ciclo de 5h30 concluído.",
+            "â±ï¸ Ciclo de 5h30 concluÃ­do.",
             flush=True
         )
 
         print(
-            "🛑 Encerrando conexão da Evelly...",
+            "ðŸ›‘ Encerrando conexÃ£o da Evelly...",
             flush=True
         )
 
         print(
-            "📡 GitHub Actions deverá iniciar "
-            "o próximo ciclo.",
+            "ðŸ“¡ GitHub Actions deverÃ¡ iniciar "
+            "o prÃ³ximo ciclo.",
             flush=True
         )
 
@@ -1255,7 +1263,7 @@ async def reinicio_automatico():
     except asyncio.CancelledError:
 
         print(
-            "⏹️ Contador de reinício cancelado.",
+            "â¹ï¸ Contador de reinÃ­cio cancelado.",
             flush=True
         )
 
@@ -1272,7 +1280,7 @@ async def main():
     )
 
     print(
-        "🚀 INICIANDO EVELLY",
+        "ðŸš€ INICIANDO EVELLY",
         flush=True
     )
 
@@ -1302,7 +1310,7 @@ async def main():
         )
 
         print(
-            "❌ TOKEN DO DISCORD INVÁLIDO",
+            "âŒ TOKEN DO DISCORD INVÃLIDO",
             flush=True
         )
 
@@ -1327,7 +1335,7 @@ async def main():
         )
 
         print(
-            "❌ ERRO AO INICIAR A EVELLY",
+            "âŒ ERRO AO INICIAR A EVELLY",
             flush=True
         )
 
@@ -1388,7 +1396,7 @@ if __name__ == "__main__":
         )
 
         print(
-            "🛑 EVELLY ENCERRADA MANUALMENTE",
+            "ðŸ›‘ EVELLY ENCERRADA MANUALMENTE",
             flush=True
         )
 
@@ -1406,7 +1414,7 @@ if __name__ == "__main__":
         )
 
         print(
-            "💀 ERRO FATAL",
+            "ðŸ’€ ERRO FATAL",
             flush=True
         )
 
@@ -1426,3 +1434,7 @@ if __name__ == "__main__":
             "==============================================",
             flush=True
         )
+
+
+
+
