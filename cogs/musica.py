@@ -1,4 +1,4 @@
-import asyncio
+]import asyncio
 import os
 import random
 import tempfile
@@ -198,6 +198,7 @@ class Musica(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.states: dict[int, GuildMusic] = {}
+        self._search_test_done = False
         self.music_group = app_commands.Group(
             name="musica",
             description="Sistema de música da Evelly.",
@@ -849,6 +850,42 @@ class Musica(commands.Cog):
     @commands.Cog.listener()
     async def on_wavelink_node_ready(self, payload):
         print(f"🎵 Lavalink pronto: {payload.node.identifier}", flush=True)
+
+        # --------------------------------------------------------
+        # TESTE TEMPORÁRIO DE BUSCA NO LAVALINK
+        # --------------------------------------------------------
+        # Executa apenas uma vez por processo para verificar se o
+        # plugin do YouTube consegue retornar resultados.
+        if self._search_test_done:
+            return
+
+        self._search_test_done = True
+        print("[MUSICA TESTE] Iniciando busca direta no Lavalink...", flush=True)
+        print("[MUSICA TESTE] Consulta: ytsearch:MC Ryan SP", flush=True)
+
+        try:
+            result = await wavelink.Playable.search("ytsearch:MC Ryan SP")
+
+            if not result:
+                print("[MUSICA TESTE] RESULTADO: NENHUMA FAIXA ENCONTRADA", flush=True)
+                return
+
+            tracks = result.tracks if isinstance(result, wavelink.Playlist) else result
+            print(f"[MUSICA TESTE] RESULTADO: {len(tracks)} faixa(s) encontrada(s)", flush=True)
+
+            for index, track in enumerate(tracks[:3], start=1):
+                print(
+                    f"[MUSICA TESTE] #{index}: "
+                    f"{getattr(track, 'title', 'Sem título')} | "
+                    f"URI: {getattr(track, 'uri', 'sem URI')}",
+                    flush=True,
+                )
+
+        except Exception as error:
+            print(
+                f"[MUSICA TESTE] ERRO NA BUSCA: {type(error).__name__}: {error}",
+                flush=True,
+            )
 
     def song_embed(
         self,
