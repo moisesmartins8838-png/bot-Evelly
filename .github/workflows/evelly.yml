@@ -181,28 +181,31 @@ jobs:
       # ==========================================
       # PREPARAR COOKIES DO YOUTUBE
       # ==========================================
-      - name: 🔐 Preparar cookies do YouTube
+           - name: 🔐 Preparar cookies do YouTube
         env:
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "=============================================="
-          echo "🔐 PREPARANDO COOKIES DO YOUTUBE"
+          echo "🔐 BAIXANDO COOKIES DO YOUTUBE"
           echo "=============================================="
 
-          if [ -z "$YOUTUBE_COOKIES" ]; then
-            echo "❌ ERRO: YOUTUBE_COOKIES está vazio."
-            echo "❌ Verifique o secret YOUTUBE_COOKIES no GitHub."
-            exit 1
-          fi
+          COOKIE_URL="${SUPABASE_URL}/storage/v1/object/evelly-private/cookies.txt"
 
-          printf '%s' "$YOUTUBE_COOKIES" > "$RUNNER_TEMP/youtube_cookies.txt"
+          echo "📥 Baixando cookies do bucket privado..."
+
+          curl -fL \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+            "$COOKIE_URL" \
+            -o "$RUNNER_TEMP/youtube_cookies.txt"
 
           if [ ! -s "$RUNNER_TEMP/youtube_cookies.txt" ]; then
-            echo "❌ ERRO: arquivo de cookies não foi criado."
+            echo "❌ ERRO: arquivo de cookies não foi baixado."
             exit 1
           fi
 
-          echo "✅ Arquivo de cookies criado."
+          echo "✅ Cookies baixados com sucesso."
           echo "📁 Arquivo temporário preparado."
 
           echo ""
@@ -210,11 +213,13 @@ jobs:
           wc -c < "$RUNNER_TEMP/youtube_cookies.txt"
 
           echo ""
+          echo "📄 Quantidade de linhas:"
+          wc -l < "$RUNNER_TEMP/youtube_cookies.txt"
+
+          echo ""
           echo "=============================================="
           echo "✅ COOKIES PREPARADOS"
           echo "=============================================="
-
-
       # ==========================================
       # TESTAR DISCORD
       # ==========================================
