@@ -1,6 +1,7 @@
 import asyncio
 import os
 import random
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -50,6 +51,27 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 COOKIES_FILE = BASE_DIR / "cookies.txt"
 
 
+def prepare_youtube_cookies() -> Optional[Path]:
+    """
+    Obtém os cookies do YouTube com esta prioridade:
+    1. YOUTUBE_COOKIES (GitHub Actions Secret)
+    2. cookies.txt local (PC)
+
+    O conteúdo do Secret nunca é impresso nos logs.
+    """
+    secret = os.getenv("YOUTUBE_COOKIES")
+
+    if secret and secret.strip():
+        runtime_file = Path(tempfile.gettempdir()) / "evelly_youtube_cookies.txt"
+        runtime_file.write_text(secret, encoding="utf-8")
+        return runtime_file
+
+    if COOKIES_FILE.exists():
+        return COOKIES_FILE
+
+    return None
+
+
 def ffmpeg_executable() -> str:
     """Retorna um FFmpeg disponível no ambiente."""
     custom = os.getenv("FFMPEG_PATH")
@@ -78,8 +100,17 @@ YTDL_OPTIONS = {
     "skip_download": True,
 }
 
-if COOKIES_FILE.exists():
-    YTDL_OPTIONS["cookiefile"] = str(COOKIES_FILE)
+YOUTUBE_COOKIE_FILE = prepare_youtube_cookies()
+
+if YOUTUBE_COOKIE_FILE:
+    YTDL_OPTIONS["cookiefile"] = str(YOUTUBE_COOKIE_FILE)
+    print("🍪 Cookies do YouTube configurados para o yt-dlp.", flush=True)
+else:
+    print(
+        "⚠️ Nenhum cookies.txt/YOUTUBE_COOKIES encontrado. "
+        "O YouTube pode bloquear a reprodução.",
+        flush=True,
+    )
 
 
 @dataclass
