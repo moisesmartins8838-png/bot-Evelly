@@ -1,4 +1,4 @@
-name: Evelly Online
+﻿name: Evelly Online
 
 on:
   workflow_dispatch:
@@ -27,16 +27,16 @@ jobs:
     steps:
 
       # ==========================================
-      # BAIXAR CÃ“DIGO
+      # BAIXAR CÃƒâ€œDIGO
       # ==========================================
-      - name: ðŸ“¥ Baixar cÃ³digo da Evelly
+      - name: Ã°Å¸â€œÂ¥ Baixar cÃƒÂ³digo da Evelly
         uses: actions/checkout@v6
 
 
       # ==========================================
       # PYTHON
       # ==========================================
-      - name: ðŸ Configurar Python
+      - name: Ã°Å¸ÂÂ Configurar Python
         uses: actions/setup-python@v6
         with:
           python-version: "3.14"
@@ -45,62 +45,62 @@ jobs:
       # ==========================================
       # BUN
       # ==========================================
-      - name: ðŸŸ£ Instalar Bun
+      - name: Ã°Å¸Å¸Â£ Instalar Bun
         uses: oven-sh/setup-bun@v2
 
 
       # ==========================================
       # NODE.JS
       # ==========================================
-      - name: ðŸŸ¢ Instalar Node.js
+      - name: Ã°Å¸Å¸Â¢ Instalar Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
 
       # ==========================================
-      # DEPENDÃŠNCIAS PYTHON
+      # DEPENDÃƒÅ NCIAS PYTHON
       # ==========================================
-      - name: ðŸ“¦ Instalar dependÃªncias
+      - name: Ã°Å¸â€œÂ¦ Instalar dependÃƒÂªncias
         run: |
           python -m pip install --upgrade pip
 
           echo "=============================================="
-          echo "ðŸ“¦ INSTALANDO DEPENDÃŠNCIAS"
+          echo "Ã°Å¸â€œÂ¦ INSTALANDO DEPENDÃƒÅ NCIAS"
           echo "=============================================="
 
           pip install -r requirements.txt
 
           echo ""
-          echo "ðŸ“º Atualizando yt-dlp..."
+          echo "Ã°Å¸â€œÂº Atualizando yt-dlp..."
           python -m pip install -U "yt-dlp[default]"
 
           echo ""
-          echo "ðŸ” Instalando PO Token Provider..."
+          echo "Ã°Å¸â€Â Instalando PO Token Provider..."
           python -m pip install -U bgutil-ytdlp-pot-provider
 
           echo ""
           echo "=============================================="
-          echo "ðŸ”Ž VERSÃ•ES"
+          echo "Ã°Å¸â€Å½ VERSÃƒâ€¢ES"
           echo "=============================================="
 
           python --version
 
           echo ""
-          echo "ðŸ“º yt-dlp:"
+          echo "Ã°Å¸â€œÂº yt-dlp:"
           python -m pip show yt-dlp
 
           echo ""
-          echo "ðŸ” bgutil:"
+          echo "Ã°Å¸â€Â bgutil:"
           python -m pip show bgutil-ytdlp-pot-provider
 
           echo ""
-          echo "ðŸŸ£ Bun:"
+          echo "Ã°Å¸Å¸Â£ Bun:"
           bun --version
           which bun
 
           echo ""
-          echo "ðŸŸ¢ Node.js:"
+          echo "Ã°Å¸Å¸Â¢ Node.js:"
           node --version
           which node
           node -p "process.execPath"
@@ -112,10 +112,10 @@ jobs:
       # ==========================================
       # BGUTIL PO TOKEN SERVER
       # ==========================================
-      - name: ðŸ” Preparar servidor PO Token
+      - name: Ã°Å¸â€Â Preparar servidor PO Token
         run: |
           echo "=============================================="
-          echo "ðŸ” CONFIGURANDO BGUTIL PO TOKEN PROVIDER"
+          echo "Ã°Å¸â€Â CONFIGURANDO BGUTIL PO TOKEN PROVIDER"
           echo "=============================================="
 
           git clone --depth 1 \
@@ -125,15 +125,15 @@ jobs:
           cd bgutil-ytdlp-pot-provider/server
 
           echo ""
-          echo "ðŸ“¦ Instalando dependÃªncias do provider..."
+          echo "Ã°Å¸â€œÂ¦ Instalando dependÃƒÂªncias do provider..."
           npm ci
 
           echo ""
-          echo "ðŸ› ï¸ Compilando provider..."
+          echo "Ã°Å¸â€ºÂ Ã¯Â¸Â Compilando provider..."
           npx tsc
 
           echo ""
-          echo "ðŸš€ Iniciando servidor PO Token..."
+          echo "Ã°Å¸Å¡â‚¬ Iniciando servidor PO Token..."
 
           nohup node build/main.js \
             --host 127.0.0.1 \
@@ -143,11 +143,11 @@ jobs:
           cd ../..
 
           echo ""
-          echo "â³ Aguardando servidor..."
+          echo "Ã¢ÂÂ³ Aguardando servidor..."
           sleep 5
 
           echo ""
-          echo "ðŸ“¡ Testando servidor PO Token..."
+          echo "Ã°Å¸â€œÂ¡ Testando servidor PO Token..."
 
           curl --fail \
             --max-time 10 \
@@ -155,7 +155,7 @@ jobs:
 
           echo ""
           echo "=============================================="
-          echo "âœ… PO TOKEN PROVIDER ONLINE"
+          echo "Ã¢Å“â€¦ PO TOKEN PROVIDER ONLINE"
           echo "=============================================="
 
 
@@ -231,15 +231,15 @@ jobs:
           tail -n 50 lavalink.log
 
       # ==========================================
-      # FFMPEG)
+      # FFMPEG
       # ==========================================
-      - name: ðŸŽµ Instalar FFmpeg
+      - name: Ã°Å¸Å½Âµ Instalar FFmpeg
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
 
           echo "=============================================="
-          echo "ðŸŽµ FFMPEG"
+          echo "Ã°Å¸Å½Âµ FFMPEG"
           echo "=============================================="
 
           ffmpeg -version | head -n 1
@@ -252,18 +252,18 @@ jobs:
       # ==========================================
       # PREPARAR COOKIES DO YOUTUBE
       # ==========================================
-      - name: ðŸ” Preparar cookies do YouTube
+      - name: Ã°Å¸â€Â Preparar cookies do YouTube
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           echo "=============================================="
-          echo "ðŸ” BAIXANDO COOKIES DO YOUTUBE"
+          echo "Ã°Å¸â€Â BAIXANDO COOKIES DO YOUTUBE"
           echo "=============================================="
 
           COOKIE_URL="${SUPABASE_URL}/storage/v1/object/evelly-private/cookies.txt"
 
-          echo "ðŸ“¥ Baixando cookies do bucket privado..."
+          echo "Ã°Å¸â€œÂ¥ Baixando cookies do bucket privado..."
 
           curl -fL \
             -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
@@ -272,32 +272,32 @@ jobs:
             -o "$RUNNER_TEMP/youtube_cookies.txt"
 
           if [ ! -s "$RUNNER_TEMP/youtube_cookies.txt" ]; then
-            echo "âŒ ERRO: arquivo de cookies nÃ£o foi baixado."
+            echo "Ã¢ÂÅ’ ERRO: arquivo de cookies nÃƒÂ£o foi baixado."
             exit 1
           fi
 
-          echo "âœ… Cookies baixados com sucesso."
-          echo "ðŸ“ Arquivo temporÃ¡rio preparado."
+          echo "Ã¢Å“â€¦ Cookies baixados com sucesso."
+          echo "Ã°Å¸â€œÂ Arquivo temporÃƒÂ¡rio preparado."
 
           echo ""
-          echo "ðŸ“ Tamanho do arquivo:"
+          echo "Ã°Å¸â€œÂ Tamanho do arquivo:"
           wc -c < "$RUNNER_TEMP/youtube_cookies.txt"
 
           echo ""
-          echo "ðŸ“„ Quantidade de linhas:"
+          echo "Ã°Å¸â€œâ€ž Quantidade de linhas:"
           wc -l < "$RUNNER_TEMP/youtube_cookies.txt"
 
           echo ""
           echo "=============================================="
-          echo "âœ… COOKIES PREPARADOS"
+          echo "Ã¢Å“â€¦ COOKIES PREPARADOS"
           echo "=============================================="
       # ==========================================
       # TESTAR DISCORD
       # ==========================================
-      - name: ðŸŒ Testar conexÃ£o com Discord
+      - name: Ã°Å¸Å’Â Testar conexÃƒÂ£o com Discord
         run: |
           echo "=============================================="
-          echo "ðŸŒ TESTANDO DISCORD"
+          echo "Ã°Å¸Å’Â TESTANDO DISCORD"
           echo "=============================================="
 
           curl -A "EvellyBot/1.0" \
@@ -312,38 +312,38 @@ jobs:
       # ==========================================
       # TESTAR YT-DLP + PO TOKEN
       # ==========================================
-      - name: ðŸ“º Testar yt-dlp
+      - name: Ã°Å¸â€œÂº Testar yt-dlp
         run: |
           echo "=============================================="
-          echo "ðŸ“º TESTANDO YT-DLP"
+          echo "Ã°Å¸â€œÂº TESTANDO YT-DLP"
           echo "=============================================="
 
           python -m yt_dlp --version
 
           echo ""
-          echo "ðŸŸ£ Bun:"
+          echo "Ã°Å¸Å¸Â£ Bun:"
           bun --version
           which bun
 
           echo ""
-          echo "ðŸŸ¢ Node.js:"
+          echo "Ã°Å¸Å¸Â¢ Node.js:"
           node --version
           which node
           node -p "process.execPath"
 
           echo ""
-          echo "ðŸª Arquivo de cookies:"
+          echo "Ã°Å¸ÂÂª Arquivo de cookies:"
           if [ -f "$RUNNER_TEMP/youtube_cookies.txt" ]; then
-            echo "âœ… youtube_cookies.txt encontrado."
+            echo "Ã¢Å“â€¦ youtube_cookies.txt encontrado."
             wc -c < "$RUNNER_TEMP/youtube_cookies.txt"
           else
-            echo "âŒ youtube_cookies.txt NÃƒO encontrado."
+            echo "Ã¢ÂÅ’ youtube_cookies.txt NÃƒÆ’O encontrado."
             exit 1
           fi
 
           echo ""
           echo "=============================================="
-          echo "ðŸ” TESTANDO PO TOKEN PROVIDER"
+          echo "Ã°Å¸â€Â TESTANDO PO TOKEN PROVIDER"
           echo "=============================================="
 
           set +e
@@ -363,15 +363,15 @@ jobs:
 
           echo ""
           echo "=============================================="
-          echo "ðŸ” FIM DO TESTE PO TOKEN"
+          echo "Ã°Å¸â€Â FIM DO TESTE PO TOKEN"
           echo "=============================================="
 
           echo ""
-          echo "ðŸ“Š CÃ³digo de saÃ­da do yt-dlp: $YTDLP_EXIT"
+          echo "Ã°Å¸â€œÅ  CÃƒÂ³digo de saÃƒÂ­da do yt-dlp: $YTDLP_EXIT"
 
           echo ""
           echo "=============================================="
-          echo "ðŸ”Ž RESUMO DO DIAGNÃ“STICO"
+          echo "Ã°Å¸â€Å½ RESUMO DO DIAGNÃƒâ€œSTICO"
           echo "=============================================="
 
           grep -Ei \
@@ -383,18 +383,18 @@ jobs:
           echo "=============================================="
 
           if [ "$YTDLP_EXIT" -ne 0 ]; then
-            echo "âš ï¸ O teste do yt-dlp falhou."
-            echo "âš ï¸ Isso NÃƒO impede o diagnÃ³stico."
-            echo "âš ï¸ O log completo foi preservado acima."
+            echo "Ã¢Å¡Â Ã¯Â¸Â O teste do yt-dlp falhou."
+            echo "Ã¢Å¡Â Ã¯Â¸Â Isso NÃƒÆ’O impede o diagnÃƒÂ³stico."
+            echo "Ã¢Å¡Â Ã¯Â¸Â O log completo foi preservado acima."
           else
-            echo "âœ… TESTE DO YT-DLP CONCLUÃDO COM SUCESSO."
+            echo "Ã¢Å“â€¦ TESTE DO YT-DLP CONCLUÃƒÂDO COM SUCESSO."
           fi
 
 
       # ==========================================
       # INICIAR EVELLY
       # ==========================================
-      - name: ðŸ¤– Iniciar Evelly
+      - name: Ã°Å¸Â¤â€“ Iniciar Evelly
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
@@ -406,20 +406,20 @@ jobs:
 
         run: |
           echo "=============================================="
-          echo "ðŸš€ INICIANDO EVELLY"
+          echo "Ã°Å¸Å¡â‚¬ INICIANDO EVELLY"
           echo "=============================================="
 
-          echo "â±ï¸ Tempo mÃ¡ximo deste ciclo: 5h50"
-          echo "ðŸ”„ ApÃ³s o ciclo, uma nova execuÃ§Ã£o serÃ¡ criada."
+          echo "Ã¢ÂÂ±Ã¯Â¸Â Tempo mÃƒÂ¡ximo deste ciclo: 5h50"
+          echo "Ã°Å¸â€â€ž ApÃƒÂ³s o ciclo, uma nova execuÃƒÂ§ÃƒÂ£o serÃƒÂ¡ criada."
 
           echo ""
-          echo "ðŸ“º Runtime JavaScript: Node.js"
+          echo "Ã°Å¸â€œÂº Runtime JavaScript: Node.js"
 
           node --version
           node -p "process.execPath"
 
           echo ""
-          echo "ðŸª YouTube Cookies: configurados"
+          echo "Ã°Å¸ÂÂª YouTube Cookies: configurados"
 
           echo ""
           echo "=============================================="
@@ -430,7 +430,7 @@ jobs:
       # ==========================================
       # REINICIAR
       # ==========================================
-      - name: ðŸ”„ Solicitar reinÃ­cio da Evelly
+      - name: Ã°Å¸â€â€ž Solicitar reinÃƒÂ­cio da Evelly
         if: always()
 
         env:
@@ -438,15 +438,16 @@ jobs:
 
         run: |
           echo "=============================================="
-          echo "ðŸ”„ PREPARANDO NOVO CICLO"
+          echo "Ã°Å¸â€â€ž PREPARANDO NOVO CICLO"
           echo "=============================================="
 
-          echo "ðŸ“¡ Solicitando nova execuÃ§Ã£o..."
+          echo "Ã°Å¸â€œÂ¡ Solicitando nova execuÃƒÂ§ÃƒÂ£o..."
 
           gh api \
             --method POST \
             "/repos/${{ github.repository }}/dispatches" \
             -f event_type="evelly_restart"
 
-          echo "âœ… Novo ciclo solicitado!"
+          echo "Ã¢Å“â€¦ Novo ciclo solicitado!"
           echo "=============================================="
+
