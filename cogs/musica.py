@@ -102,7 +102,10 @@ def ffmpeg_executable() -> str:
 
 
 YTDL_OPTIONS = {
-    "format": "bestaudio/best",
+    # O cliente web_embedded é o mesmo cliente que o teste do GitHub
+    # está conseguindo extrair corretamente (401+251).
+    "format": "bestaudio[acodec!=none]/bestaudio/best",
+
     "noplaylist": True,
     "quiet": True,
     "no_warnings": True,
@@ -111,10 +114,21 @@ YTDL_OPTIONS = {
     "extract_flat": False,
     "skip_download": True,
 
+    # Permite ao yt-dlp resolver os desafios JS usando o Node instalado
+    # no GitHub Actions.
+    "js_runtimes": {
+        "node": {},
+    },
+
+    # Mantemos o cliente web_embedded porque o diagnóstico do GitHub
+    # confirmou que ele entrega formatos de áudio válidos.
     "extractor_args": {
         "youtube": {
-            "player_client": ["android"]
-        }
+            "player_client": ["web_embedded"],
+        },
+        "youtubepot-bgutilhttp": {
+            "base_url": "http://127.0.0.1:4416",
+        },
     },
 }
 
@@ -856,6 +870,11 @@ class Musica(commands.Cog):
                         return None
                     info = entries[0]
 
+                stream_url = info.get("url") or ""
+
+                # O Discord/FFmpeg precisa de uma URL de mídia direta.
+                # Se o extrator retornar apenas uma entrada sem URL,
+                # tentamos usar a URL da página no refresh_stream_url.
                 return {
                     "title": info.get("title") or "Sem título",
                     "webpage_url": (
