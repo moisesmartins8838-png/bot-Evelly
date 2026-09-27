@@ -113,7 +113,7 @@ YTDL_OPTIONS = {
 
     "extractor_args": {
         "youtube": {
-            "player_client": ["web_safari", "web_embedded", "-tv_downgraded"]
+            "player_client": ["android"]
         }
     },
 }
