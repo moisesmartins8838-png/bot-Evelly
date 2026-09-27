@@ -150,6 +150,7 @@ class Song:
     title: str
     webpage_url: str
     stream_url: str = ""
+    http_headers: dict[str, str] = field(default_factory=dict)
     duration: Optional[int] = None
     thumbnail: Optional[str] = None
     requester_id: Optional[int] = None
@@ -166,6 +167,8 @@ class GuildMusic:
     text_channel_id: Optional[int] = None
     playing: bool = False
     starting: bool = False
+    stop_requested: bool = False
+    play_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 class MusicControlView(discord.ui.View):
@@ -290,12 +293,14 @@ class MusicControlView(discord.ui.View):
 
         state.queue.clear()
         state.loop = "off"
+        state.stop_requested = True
 
-        if state.voice and state.voice.is_playing():
+        if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
             state.voice.stop()
 
         state.current = None
         state.playing = False
+        state.starting = False
 
         await interaction.response.send_message(
             "⏹️ Reprodução parada e fila limpa.",
@@ -321,11 +326,13 @@ class MusicControlView(discord.ui.View):
             )
             return
 
+        state.stop_requested = True
         await state.voice.disconnect(force=True)
         state.voice = None
         state.queue.clear()
         state.current = None
         state.playing = False
+        state.starting = False
 
         await interaction.response.send_message(
             "👋 Saí da call e limpei a fila.",
@@ -451,6 +458,7 @@ class Musica(commands.Cog):
                     )
                     return
 
+                state.stop_requested = False
                 state.queue.append(song)
 
                 embed = self.song_embed(
@@ -555,12 +563,14 @@ class Musica(commands.Cog):
 
             state.queue.clear()
             state.loop = "off"
+            state.stop_requested = True
 
             if state.voice and (state.voice.is_playing() or state.voice.is_paused()):
                 state.voice.stop()
 
             state.current = None
             state.playing = False
+            state.starting = False
 
             await interaction.response.send_message(
                 "⏹️ Reprodução parada e fila limpa."
@@ -583,11 +593,13 @@ class Musica(commands.Cog):
                 )
                 return
 
+            state.stop_requested = True
             await state.voice.disconnect(force=True)
             state.voice = None
             state.queue.clear()
             state.current = None
             state.playing = False
+            state.starting = False
             state.loop = "off"
 
             await interaction.response.send_message(
@@ -883,6 +895,7 @@ class Musica(commands.Cog):
                         or query
                     ),
                     "stream_url": info.get("url") or "",
+                    "http_headers": dict(info.get("http_headers") or {}),
                     "duration": info.get("duration"),
                     "thumbnail": info.get("thumbnail"),
                 }
@@ -896,6 +909,7 @@ class Musica(commands.Cog):
             title=data["title"],
             webpage_url=data["webpage_url"],
             stream_url=data["stream_url"],
+            http_headers=data["http_headers"],
             duration=data["duration"],
             thumbnail=data["thumbnail"],
             requester_id=requester.id,
@@ -903,7 +917,7 @@ class Musica(commands.Cog):
         )
 
     async def refresh_stream_url(self, song: Song) -> Song:
-        """Obtém uma URL de áudio fresca para evitar expiração."""
+        """Obtém uma URL de áudio fresca e seus headers para o FFmpeg."""
         def extract():
             options = dict(YTDL_OPTIONS)
             with yt_dlp.YoutubeDL(options) as ydl:
@@ -921,14 +935,18 @@ class Musica(commands.Cog):
                         raise RuntimeError("Música não encontrada.")
                     info = entries[0]
 
-                return info.get("url")
+                return {
+                    "url": info.get("url") or "",
+                    "http_headers": dict(info.get("http_headers") or {}),
+                }
 
-        url = await asyncio.to_thread(extract)
+        data = await asyncio.to_thread(extract)
 
-        if not url:
+        if not data["url"]:
             raise RuntimeError("Não foi possível obter o áudio.")
 
-        song.stream_url = url
+        song.stream_url = data["url"]
+        song.http_headers = data["http_headers"]
         return song
 
     async def play_next(self, guild_id: int):
@@ -937,133 +955,164 @@ class Musica(commands.Cog):
         if not state or not state.voice or not state.voice.is_connected():
             return
 
-        if state.starting:
-            return
-
-        # Loop da música atual.
-        if state.current and state.loop == "song":
-            song = state.current
-        else:
-            if state.current and state.loop == "queue":
-                state.queue.append(state.current)
-
-            if not state.queue:
-                state.current = None
-                state.playing = False
-
-                channel = self.bot.get_channel(state.text_channel_id or 0)
-                if channel:
-                    try:
-                        await channel.send(
-                            "📭 A fila terminou."
-                        )
-                    except Exception:
-                        pass
+        async with state.play_lock:
+            # Evita duas rotinas tentando iniciar a mesma fila ao mesmo tempo.
+            if state.starting:
                 return
 
-            song = state.queue.pop(0)
-            state.current = song
+            if state.playing or state.voice.is_playing() or state.voice.is_paused():
+                return
 
-        state.starting = True
+            if state.stop_requested:
+                state.stop_requested = False
+                return
 
-        try:
-            song = await self.refresh_stream_url(song)
+            # Uma única chamada controla toda a transição da fila.
+            while (
+                state.voice
+                and state.voice.is_connected()
+                and not state.playing
+                and not state.starting
+            ):
+                # Loop da música atual.
+                if state.current and state.loop == "song":
+                    song = state.current
+                else:
+                    if state.current and state.loop == "queue":
+                        state.queue.append(state.current)
 
-            ffmpeg = ffmpeg_executable()
+                    if not state.queue:
+                        state.current = None
+                        state.playing = False
+                        return
 
-            before_options = (
-                "-reconnect 1 "
-                "-reconnect_streamed 1 "
-                "-reconnect_delay_max 5"
-            )
+                    song = state.queue.pop(0)
+                    state.current = song
 
-            options = (
-                "-vn "
-                "-loglevel warning "
-                "-ac 2 "
-                "-ar 48000"
-            )
-
-            source = discord.FFmpegPCMAudio(
-                song.stream_url,
-                executable=ffmpeg,
-                before_options=before_options,
-                options=options,
-            )
-
-            source = discord.PCMVolumeTransformer(
-                source,
-                volume=state.volume,
-            )
-
-            def after_play(error):
-                if error:
-                    print(
-                        f"[MUSICA] Erro de reprodução em "
-                        f"{guild_id}: {error}",
-                        flush=True,
-                    )
-
-                future = asyncio.run_coroutine_threadsafe(
-                    self.handle_after(guild_id),
-                    self.bot.loop,
-                )
+                state.starting = True
 
                 try:
-                    future.result(timeout=1)
-                except Exception:
-                    pass
+                    song = await self.refresh_stream_url(song)
 
-            state.voice.play(
-                source,
-                after=after_play,
-            )
+                    ffmpeg = ffmpeg_executable()
 
-            state.playing = True
+                    # A URL do YouTube é protegida pelos mesmos headers usados
+                    # pelo yt-dlp. Sem eles o servidor pode responder 403.
+                    headers = song.http_headers or {}
+                    user_agent = headers.get("User-Agent", "")
+                    referer = headers.get("Referer", "")
 
-            channel = self.bot.get_channel(
-                state.text_channel_id or 0
-            )
+                    before_parts = [
+                        "-reconnect 1",
+                        "-reconnect_streamed 1",
+                        "-reconnect_delay_max 5",
+                        "-reconnect_on_network_error 1",
+                        "-reconnect_on_http_error 403,429,500,502,503,504",
+                    ]
 
-            if channel:
-                try:
-                    embed = self.song_embed(
-                        song,
-                        title="▶️ Tocando agora",
+                    if user_agent:
+                        safe_ua = user_agent.replace("\\", "\\\\").replace('"', '\\\"')
+                        before_parts.append(f'-user_agent "{safe_ua}"')
+
+                    if referer:
+                        safe_referer = referer.replace("\\", "\\\\").replace('"', '\\\"')
+                        before_parts.append(f'-referer "{safe_referer}"')
+
+                    before_options = " ".join(before_parts)
+
+                    options = (
+                        "-vn "
+                        "-loglevel warning "
+                        "-ac 2 "
+                        "-ar 48000"
                     )
-                    await channel.send(embed=embed)
+
+                    source = discord.FFmpegPCMAudio(
+                        song.stream_url,
+                        executable=ffmpeg,
+                        before_options=before_options,
+                        options=options,
+                    )
+
+                    source = discord.PCMVolumeTransformer(
+                        source,
+                        volume=state.volume,
+                    )
+
+                    def after_play(error):
+                        if error:
+                            print(
+                                f"[MUSICA] Erro de reprodução em "
+                                f"{guild_id}: {error}",
+                                flush=True,
+                            )
+
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.handle_after(guild_id),
+                            self.bot.loop,
+                        )
+
+                        try:
+                            future.result(timeout=1)
+                        except Exception:
+                            pass
+
+                    state.voice.play(
+                        source,
+                        after=after_play,
+                    )
+
+                    state.playing = True
+                    state.starting = False
+
+                    channel = self.bot.get_channel(
+                        state.text_channel_id or 0
+                    )
+
+                    if channel:
+                        try:
+                            embed = self.song_embed(
+                                song,
+                                title="▶️ Tocando agora",
+                            )
+                            await channel.send(embed=embed)
+                        except Exception as error:
+                            print(
+                                f"[MUSICA] Erro enviando agora: {error}",
+                                flush=True,
+                            )
+
+                    return
+
                 except Exception as error:
                     print(
-                        f"[MUSICA] Erro enviando agora: {error}",
+                        f"[MUSICA] Falha ao iniciar {song.title}: {error}",
                         flush=True,
                     )
 
-        except Exception as error:
-            print(
-                f"[MUSICA] Falha ao iniciar {song.title}: {error}",
-                flush=True,
-            )
+                    state.starting = False
+                    state.current = None
+                    state.playing = False
 
-            channel = self.bot.get_channel(
-                state.text_channel_id or 0
-            )
-
-            if channel:
-                try:
-                    await channel.send(
-                        f"⚠️ Não consegui reproduzir "
-                        f"**{song.title}**. Pulando para a próxima."
+                    channel = self.bot.get_channel(
+                        state.text_channel_id or 0
                     )
-                except Exception:
-                    pass
 
-            state.current = None
-            state.playing = False
+                    if channel:
+                        try:
+                            await channel.send(
+                                f"⚠️ Não consegui reproduzir "
+                                f"**{song.title}**. Pulando para a próxima."
+                            )
+                        except Exception:
+                            pass
 
-            await self.play_next(guild_id)
+                    # Não chama play_next recursivamente. Continua dentro
+                    # do mesmo lock para evitar corrida/deadlock.
+                    continue
 
-        finally:
-            state.starting = False
+                finally:
+                    state.starting = False
 
     async def handle_after(self, guild_id: int):
         state = self.states.get(guild_id)
@@ -1071,10 +1120,17 @@ class Musica(commands.Cog):
         if not state:
             return
 
-        state.playing = False
-
-        # Se a sessão ainda existe, continua automaticamente.
+        # O callback do discord.py acontece em uma thread do player.
+        # Aqui voltamos ao event loop e controlamos a próxima faixa uma vez.
         await asyncio.sleep(0.5)
+
+        if state.stop_requested:
+            state.stop_requested = False
+            state.playing = False
+            state.starting = False
+            return
+
+        state.playing = False
 
         if state.voice and state.voice.is_connected():
             await self.play_next(guild_id)
