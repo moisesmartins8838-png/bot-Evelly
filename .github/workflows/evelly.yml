@@ -170,7 +170,7 @@ jobs:
           cd lavalink
           wget -q https://github.com/lavalink-devs/Lavalink/releases/download/4.2.2/Lavalink.jar
 
-          printf '%s\n' 'server:' '  port: 2333' '' 'lavalink:' '  plugins:' '    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"' '      repository: "https://maven.lavalink.dev/releases"' '' '  server:' '    password: "evelly123"' '    sources:' '      youtube: false' '      soundcloud: true' '      bandcamp: true' '      twitch: true' '      vimeo: true' '      http: true' '' 'plugins:' '  youtube:' '    enabled: true' '    allowSearch: true' '    allowDirectVideoIds: true' '    allowDirectPlaylistIds: true' '    clients:' '      - MUSIC' '      - WEB' '      - WEBEMBEDDED' '      - MWEB' '      - ANDROID_VR' '' 'logging:' '  level:' '    root: INFO' '    lavalink: INFO' > application.yml
+          printf '%s\n' 'server:' '  port: 2333' '' 'lavalink:' '  plugins:' '    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"' '      repository: "https://maven.lavalink.dev/releases"' '' '  server:' '    password: "evelly123"' '    sources:' '      youtube: false' '      soundcloud: true' '      bandcamp: true' '      twitch: true' '      vimeo: true' '      http: true' '' 'plugins:' '  youtube:' '    enabled: true' '    oauth:' '      enabled: true' '    allowSearch: true' '    allowDirectVideoIds: true' '    allowDirectPlaylistIds: true' '    clients:' '      - MUSIC' '      - WEB' '      - WEBEMBEDDED' '      - MWEB' '      - ANDROID_VR' '' 'logging:' '  level:' '    root: INFO' '    lavalink: INFO' > application.yml
 
 
           nohup java -jar Lavalink.jar > lavalink.log 2>&1 &
