@@ -682,6 +682,13 @@ class Evelly(commands.Bot):
             "cogs.limpar",
 
             "cogs.atualizacoes",
+
+            "cogs.sticky",
+
+            "cogs.musica",
+
+            "cogs.embed",
+#
         ]
 
 

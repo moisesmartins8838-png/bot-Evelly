@@ -1,0 +1,4 @@
+# Dependências do sistema de música
+PyNaCl>=1.5.0
+yt-dlp[default]
+imageio-ffmpeg>=0.6.0

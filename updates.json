@@ -1,16 +1,22 @@
 {
-    "version": "0.4(BETA)",
+    "version": "1.2(BETA)",
     "title": "Sistema de Atualizações",
     "date": "2026-09-26",
-    "description": "A Evelly recebeu melhorias importantes no sistema de tickets e na persistência dos seus painéis.",
+    "description": "A Evelly recebeu melhorias músicais e uma melhoria no ticket.",
     "new": [
         "Sistema de anúncios de atualização por canal do Discord.",
         "Histórico de versões salvo no Banco de Dados.",
-        "Agora você pode modificar as mensagens do painel do ticket."
+        "Agora você pode modificar as mensagens do painel do ticket. (Porém uma aba de instruções é permanente por enquanto...)",
+        "Adicionado /musica... Agora voce pode escutar a suas favoritas apenas colocando o nome ou inserir o link.",
+        "Adicionado /sticky... para ser uma mensagem fixa do canal desejado.",
+        "Adicionado /embed... para criar um embed personalizado sem precisar sair do discord."
+
     ],
     "fixed": [
-        "Painel de tickets deixa de funcionar após reinicialização da Evelly.",
-        "Call temporária não era removida corretamente ao fechar um ticket."
+        "Painel de tickets deixa de funcionar após reinicialização da Evelly. (instavel, pode acabar dando erro novamente)",
+        "Call temporária não era removida corretamente ao fechar um ticket.",
+        "Corrigido o bug em que depois de 7 dias os arquivos não ficavam mais dispóniveis pra download.",
+        "Corrigido o Bug em que as imagens colocadas no /welcome ficavam embaçadas."
     ],
     "improved": [
         "Persistência dos componentes interativos do sistema de tickets.",
