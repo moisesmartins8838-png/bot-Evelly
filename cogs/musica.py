@@ -54,11 +54,23 @@ COOKIES_FILE = BASE_DIR / "cookies.txt"
 def prepare_youtube_cookies() -> Optional[Path]:
     """
     Obtém os cookies do YouTube com esta prioridade:
-    1. YOUTUBE_COOKIES (GitHub Actions Secret)
-    2. cookies.txt local (PC)
+    1. YOUTUBE_COOKIE_FILE (arquivo baixado pelo GitHub Actions)
+    2. YOUTUBE_COOKIES (Secret antigo, como fallback)
+    3. cookies.txt local (PC)
 
-    O conteúdo do Secret nunca é impresso nos logs.
+    O conteúdo dos cookies nunca é impresso nos logs.
     """
+
+    # 1. Arquivo de cookies baixado pelo GitHub Actions
+    cookie_file = os.getenv("YOUTUBE_COOKIE_FILE")
+
+    if cookie_file:
+        path = Path(cookie_file)
+
+        if path.exists() and path.is_file() and path.stat().st_size > 0:
+            return path
+
+    # 2. Secret antigo como fallback
     secret = os.getenv("YOUTUBE_COOKIES")
 
     if secret and secret.strip():
@@ -66,11 +78,11 @@ def prepare_youtube_cookies() -> Optional[Path]:
         runtime_file.write_text(secret, encoding="utf-8")
         return runtime_file
 
+    # 3. Cookies local no PC
     if COOKIES_FILE.exists():
         return COOKIES_FILE
 
     return None
-
 
 def ffmpeg_executable() -> str:
     """Retorna um FFmpeg disponível no ambiente."""
