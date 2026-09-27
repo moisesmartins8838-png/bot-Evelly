@@ -110,6 +110,12 @@ YTDL_OPTIONS = {
     "source_address": "0.0.0.0",
     "extract_flat": False,
     "skip_download": True,
+
+    "extractor_args": {
+        "youtube": {
+            "player_client": ["web_safari", "web_embedded", "-tv_downgraded"]
+        }
+    },
 }
 
 YOUTUBE_COOKIE_FILE = prepare_youtube_cookies()
