@@ -71,62 +71,19 @@ def cfg_ticket(guild_id: int):
         return None
 
 
-def save_ticket_cfg(
-    guild_id,
-    category_id,
-    staff_role_id,
-    panel_channel_id=None,
-    panel_message=None,
-):
+def save_ticket_cfg(guild_id, category_id, staff_role_id, panel_channel_id=None):
     try:
-        payload = {
+        supabase.table("evelly_ticket_config").upsert({
             "guild_id": int(guild_id),
             "category_id": int(category_id),
             "staff_role_id": int(staff_role_id),
             "panel_channel_id": int(panel_channel_id) if panel_channel_id else None,
             "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if panel_message is not None:
-            payload["panel_message"] = str(panel_message)[:4000]
-
-        supabase.table("evelly_ticket_config").upsert(
-            payload,
-            on_conflict="guild_id",
-        ).execute()
+        }, on_conflict="guild_id").execute()
         return True
     except Exception as e:
         print(f"[TICKET] Save config error: {e}", flush=True)
         return False
-
-
-def render_panel_message(message, guild, staff_role, categories):
-    default_message = (
-        "Precisa de ajuda? Selecione abaixo o tipo de atendimento que você precisa.\n\n"
-        "Um canal privado será criado automaticamente e nossa equipe poderá "
-        "reivindicar o atendimento."
-    )
-
-    text = str(message or default_message).strip()
-    if not text:
-        text = default_message
-
-    category_lines = []
-    for category in categories:
-        emoji = str(category.get("emoji") or "🎫")
-        label = str(category.get("label") or category.get("key") or "Atendimento")
-        category_lines.append(f"{emoji} **{label}**")
-
-    replacements = {
-        "{servidor}": guild.name,
-        "{staff}": staff_role.mention if staff_role else "@Equipe",
-        "{categorias}": "\n".join(category_lines) if category_lines else "Nenhuma categoria configurada.",
-    }
-
-    for placeholder, value in replacements.items():
-        text = text.replace(placeholder, value)
-
-    return text[:4096]
 
 
 def create_ticket_db(guild_id, channel_id, user_id, category):
@@ -917,7 +874,6 @@ class TicketActionsView(discord.ui.View):
 
             if cfg and cfg.get("staff_role_id"):
                 try:
-                    guild = interaction.guild
                     staff_role = guild.get_role(int(cfg["staff_role_id"]))
                 except (TypeError, ValueError):
                     staff_role = None
@@ -1160,57 +1116,6 @@ class Ticket(commands.Cog):
         )
 
     @ticket.command(
-        name="mensagem_painel",
-        description="Define a mensagem exibida no painel de abertura de tickets.",
-    )
-    @app_commands.describe(
-        mensagem=(
-            "Texto do painel. Placeholders: {servidor}, {staff}, {categorias}."
-        ),
-    )
-    async def mensagem_painel(
-        self,
-        interaction: discord.Interaction,
-        mensagem: str,
-    ):
-        if not pode_controlar_evelly(interaction.user):
-            await interaction.response.send_message(
-                "❌ Você não possui permissão para alterar a mensagem do painel.",
-                ephemeral=True,
-            )
-            return
-
-        cfg = cfg_ticket(interaction.guild.id)
-        if not cfg:
-            await interaction.response.send_message(
-                "❌ Configure primeiro com `/ticket configurar`.",
-                ephemeral=True,
-            )
-            return
-
-        ok = save_ticket_cfg(
-            interaction.guild.id,
-            cfg["category_id"],
-            cfg["staff_role_id"],
-            cfg.get("panel_channel_id"),
-            mensagem,
-        )
-
-        if not ok:
-            await interaction.response.send_message(
-                "❌ Não consegui salvar a mensagem do painel.",
-                ephemeral=True,
-            )
-            return
-
-        await interaction.response.send_message(
-            "✅ **Mensagem do painel atualizada!**\n\n"
-            "Para aplicar a nova mensagem no painel que já está publicado, "
-            "use `/ticket painel` novamente.",
-            ephemeral=True,
-        )
-
-    @ticket.command(
         name="painel",
         description="Publica o painel de abertura de tickets.",
     )
@@ -1229,9 +1134,6 @@ class Ticket(commands.Cog):
             )
             return
 
-        # Reconhece a interação imediatamente para evitar timeout do Discord.
-        await interaction.response.defer(ephemeral=True)
-
         cfg = cfg_ticket(interaction.guild.id)
         if not cfg:
             await interaction.response.send_message(
@@ -1242,18 +1144,13 @@ class Ticket(commands.Cog):
 
         categories = seed_default_categories(interaction.guild.id)
 
-        guild = interaction.guild
-        staff_role = guild.get_role(int(cfg["staff_role_id"]))
-        panel_description = render_panel_message(
-            cfg.get("panel_message"),
-            interaction.guild,
-            staff_role,
-            categories,
-        )
-
         embed = discord.Embed(
             title="🎫 Atendimento — LN Store",
-            description=panel_description,
+            description=(
+                "Precisa de ajuda? Selecione abaixo o tipo de atendimento que você precisa.\n\n"
+                "Um canal privado será criado automaticamente e nossa equipe poderá "
+                "reivindicar o atendimento."
+            ),
             color=PURPLE,
         )
         embed.add_field(
@@ -1278,10 +1175,9 @@ class Ticket(commands.Cog):
             cfg["category_id"],
             cfg["staff_role_id"],
             canal.id,
-            cfg.get("panel_message"),
         )
 
-        await interaction.followup.send(
+        await interaction.response.send_message(
             f"✅ Painel de tickets publicado em {canal.mention}.",
             ephemeral=True,
         )
@@ -1654,9 +1550,32 @@ class Ticket(commands.Cog):
         )
 
     async def cog_load(self):
-        # O painel é recriado dinamicamente por servidor, portanto não
-        # registramos um menu global com categorias antigas.
-        self.bot.add_view(TicketActionsView(self))
+        # Registra novamente as Views persistentes após cada reinício.
+        # O Discord mantém a mensagem antiga, mas a instância Python da
+        # View é perdida quando o processo reinicia.
+        try:
+            self.bot.add_view(TicketPanelView(self, []))
+            print(
+                "[TICKET] Painel persistente registrado após reinício.",
+                flush=True,
+            )
+        except Exception as e:
+            print(
+                f"[TICKET] Erro registrando painel persistente: {e}",
+                flush=True,
+            )
+
+        try:
+            self.bot.add_view(TicketActionsView(self))
+            print(
+                "[TICKET] Ações persistentes registradas após reinício.",
+                flush=True,
+            )
+        except Exception as e:
+            print(
+                f"[TICKET] Erro registrando ações persistentes: {e}",
+                flush=True,
+            )
 
     def cog_unload(self):
         if self.cleanup_temp_voice_channels.is_running():
