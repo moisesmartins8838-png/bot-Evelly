@@ -44,6 +44,7 @@ DEFAULT_CONFIG = {
     "canal_chat_id": None,
     "canal_cargos_id": None,
     "cargo_id": None,
+    "cargos_automaticos_ids": [],
 }
 
 
@@ -364,35 +365,41 @@ class WelcomeRulesSelect(discord.ui.ChannelSelect):
 class WelcomeRoleSelect(discord.ui.RoleSelect):
     def __init__(self, cog):
         super().__init__(
-            placeholder="🏷️ Escolha o cargo para aparecer na mensagem",
-            min_values=1,
-            max_values=1,
+            placeholder="🏷️ Escolha até 10 cargos automáticos",
+            min_values=0,
+            max_values=10,
             row=2,
         )
         self.cog = cog
 
     async def callback(self, interaction: discord.Interaction):
         try:
-            role = self.values[0]
-            if role.is_default():
-                await interaction.response.send_message(
-                    "❌ O cargo `@everyone` não pode ser usado.",
-                    ephemeral=True,
-                )
-                return
+            roles = [
+                role for role in self.values
+                if not role.is_default() and not role.managed
+            ][:10]
 
             config = await obter_config(interaction.guild.id)
-            config["cargo_id"] = role.id
+            config["cargos_automaticos_ids"] = [role.id for role in roles]
+            config["cargo_id"] = roles[0].id if roles else None
             await salvar_config(interaction.guild.id, config)
-            await interaction.response.send_message(
-                f"🏷️ Cargo definido como {role.mention}.",
-                ephemeral=True,
-            )
+
+            if roles:
+                lista = " ".join(role.mention for role in roles)
+                msg = (
+                    f"🏷️ **{len(roles)} cargo(s) automático(s) salvo(s):**\n"
+                    f"{lista}\n\n"
+                    "A Evelly atribuirá todos eles quando um novo membro entrar."
+                )
+            else:
+                msg = "🏷️ Cargos automáticos removidos."
+
+            await interaction.response.send_message(msg, ephemeral=True)
         except Exception as exc:
-            print(f"[WELCOME] Erro ao salvar cargo: {exc}", flush=True)
+            print(f"[WELCOME] Erro ao salvar cargos automáticos: {exc}", flush=True)
             if not interaction.response.is_done():
                 await interaction.response.send_message(
-                    "❌ Não foi possível salvar o cargo.",
+                    "❌ Não foi possível salvar os cargos automáticos.",
                     ephemeral=True,
                 )
 
@@ -521,6 +528,11 @@ class Welcome(commands.Cog):
         chat = guild.get_channel(config.get("canal_chat_id")) if config.get("canal_chat_id") else None
         cargos = guild.get_channel(config.get("canal_cargos_id")) if config.get("canal_cargos_id") else None
         role = guild.get_role(config.get("cargo_id")) if config.get("cargo_id") else None
+        cargos_automaticos = []
+        for role_id in config.get("cargos_automaticos_ids", []):
+            automatic_role = guild.get_role(role_id)
+            if automatic_role and not automatic_role.is_default() and not automatic_role.managed:
+                cargos_automaticos.append(automatic_role)
 
         embed = discord.Embed(
             title="💜 EVELLY • WELCOME SYSTEM",
@@ -531,7 +543,9 @@ class Welcome(commands.Cog):
                 f"📚 **Regras:** {regras.mention if regras else 'Não configurado'}\n"
                 f"💬 **Chat:** {chat.mention if chat else 'Não configurado'}\n"
                 f"🏷️ **Cargos:** {cargos.mention if cargos else 'Não configurado'}\n"
-                f"🎖️ **Cargo:** {role.mention if role else 'Não configurado'}\n"
+                f"🎖️ **Cargo principal:** {role.mention if role else 'Não configurado'}\n"
+                f"🏷️ **Cargos automáticos:** "
+                f"{' '.join(r.mention for r in cargos_automaticos) if cargos_automaticos else 'Nenhum configurado'}\n"
                 f"🎨 **Cor:** `#{config.get('cor', DEFAULT_CONFIG['cor']):06X}`\n"
                 f"🖼️ **Mídia:** {'GIF' if config.get('gif_url') else 'Imagem' if config.get('imagem_url') else 'Nenhuma'}"
             ),
@@ -695,15 +709,55 @@ class Welcome(commands.Cog):
         try:
             config = await obter_config(member.guild.id)
 
-            if not config.get("ativo") or not config.get("canal_id"):
+            if not config.get("ativo"):
+                return
+
+            # Atribui todos os cargos automáticos configurados.
+            cargos_config = config.get("cargos_automaticos_ids", [])
+            if not cargos_config and config.get("cargo_id"):
+                cargos_config = [config["cargo_id"]]
+
+            roles = []
+            bot_member = member.guild.me
+            for role_id in cargos_config:
+                role = member.guild.get_role(role_id)
+                if role is None or role.is_default() or role.managed:
+                    continue
+                if bot_member and role >= bot_member.top_role:
+                    print(
+                        f"[WELCOME] Hierarquia insuficiente para atribuir '{role.name}' a {member}. "
+                        "O cargo precisa estar abaixo do maior cargo da Evelly.",
+                        flush=True,
+                    )
+                    continue
+                roles.append(role)
+
+            if roles:
+                try:
+                    await member.add_roles(
+                        *roles,
+                        reason="Evelly • cargos automáticos de entrada",
+                    )
+                    print(
+                        f"[WELCOME] Cargos automáticos atribuídos para {member}: "
+                        f"{', '.join(role.name for role in roles)}",
+                        flush=True,
+                    )
+                except discord.Forbidden:
+                    print(
+                        f"[WELCOME] Sem permissão/hierarquia para atribuir cargos a {member}",
+                        flush=True,
+                    )
+                except discord.HTTPException as exc:
+                    print(f"[WELCOME] Erro HTTP atribuindo cargos a {member}: {exc}", flush=True)
+
+            # Envia a mensagem pública de boas-vindas.
+            if not config.get("canal_id"):
                 return
 
             canal = member.guild.get_channel(config["canal_id"])
             if canal is None or not isinstance(canal, (discord.TextChannel, discord.Thread)):
-                print(
-                    f"[WELCOME] Canal não encontrado no servidor {member.guild.id}",
-                    flush=True,
-                )
+                print(f"[WELCOME] Canal não encontrado no servidor {member.guild.id}", flush=True)
                 return
 
             await enviar_boas_vindas(member, config, canal)
@@ -713,6 +767,7 @@ class Welcome(commands.Cog):
             )
         except Exception as exc:
             print(f"[WELCOME] Erro no on_member_join: {exc}", flush=True)
+
 
 
 async def setup(bot: commands.Bot):
