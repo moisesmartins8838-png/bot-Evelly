@@ -153,42 +153,6 @@ jobs:
           echo "=============================================="
 
       # ==========================================
-      # JAVA 17 - LAVALINK
-      # ==========================================
-      - name: Instalar Java 17
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      # ==========================================
-      # LAVALINK 4.2.2
-      # ==========================================
-      - name: Instalar e iniciar Lavalink
-        run: |
-          mkdir -p lavalink
-          cd lavalink
-          wget -q https://github.com/lavalink-devs/Lavalink/releases/download/4.2.2/Lavalink.jar
-
-          printf '%s\n' 'server:' '  port: 2333' '' 'lavalink:' '  plugins:' '    - dependency: "dev.lavalink.youtube:youtube-plugin:1.18.2"' '      repository: "https://maven.lavalink.dev/releases"' '' '  server:' '    password: "evelly123"' '    sources:' '      youtube: false' '      soundcloud: true' '      bandcamp: true' '      twitch: true' '      vimeo: true' '      http: true' '' 'plugins:' '  youtube:' '    enabled: true' '    oauth:' '      enabled: true' '    allowSearch: true' '    allowDirectVideoIds: true' '    allowDirectPlaylistIds: true' '    clients:' '      - TV' '      - WEB' '      - MWEB' '      - ANDROID_VR' '' 'logging:' '  level:' '    root: INFO' '    lavalink: INFO' > application.yml
-
-
-          nohup java -jar Lavalink.jar > lavalink.log 2>&1 &
-
-          echo "Aguardando Lavalink iniciar..."
-
-          for i in {1..60}; do
-            if curl -s http://127.0.0.1:2333/version > /dev/null; then
-              echo "Lavalink iniciado com sucesso!"
-              break
-            fi
-            sleep 2
-          done
-
-          echo "===== LOG DO LAVALINK ====="
-          tail -n 50 lavalink.log
-
-      # ==========================================
       # FFMPEG
       # ==========================================
       - name:  Instalar FFmpeg

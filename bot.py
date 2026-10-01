@@ -4,7 +4,6 @@ import traceback
 from datetime import datetime, timezone
 
 import discord
-import wavelink
 from discord.ext import commands
 
 from dotenv import load_dotenv
@@ -21,10 +20,6 @@ load_dotenv()
 
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-
-LAVALINK_HOST = "127.0.0.1"
-LAVALINK_PORT = 2333
-LAVALINK_PASSWORD = "evelly123"
 
 
 # ============================================================
@@ -584,10 +579,6 @@ class Evelly(commands.Bot):
     # ========================================================
 
     async def setup_hook(self):
-        lavalink_node = wavelink.Node(uri=f"http://{LAVALINK_HOST}:{LAVALINK_PORT}", password=LAVALINK_PASSWORD)
-        await wavelink.Pool.connect(nodes=[lavalink_node], client=self)
-        print("Lavalink conectado com sucesso.")
-
         print(
             "==============================================",
             flush=True
@@ -693,7 +684,6 @@ class Evelly(commands.Bot):
 
             "cogs.sticky",
 
-            "cogs.musica",
 
             "cogs.embed",
 #
